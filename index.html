@@ -1,0 +1,1613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Port Fitting Overview — Sales Performance</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:            #f9f9f7;
+    --surface-1:       #fcfcfb;
+    --text-primary:    #0b0b0b;
+    --text-secondary:  #52514e;
+    --text-muted:      #898781;
+    --grid:            #e1e0d9;
+    --baseline:        #c3c2b7;
+    --border:          rgba(11,11,11,0.10);
+    --series-accent:   #2a78d6;   /* categorical slot 1 — current period */
+    --series-accent-wash: rgba(42,120,214,0.16);
+    --series-prior:    #c3c2b7;   /* de-emphasis gray — prior period */
+    --series-prior-wash: rgba(137,135,129,0.14);
+    --series-2:        #008300;  /* categorical slot 2 */
+    --series-3:        #e87ba4;  /* categorical slot 3 */
+    --series-4:        #eda100;  /* categorical slot 4 */
+    --good:            #006300;
+    --critical:        #d03b3b;
+    --navy:            #14213d;
+    --navy-2:          #1c2d52;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:            #0d0d0d;
+      --surface-1:       #1a1a19;
+      --text-primary:    #ffffff;
+      --text-secondary:  #c3c2b7;
+      --text-muted:      #898781;
+      --grid:            #2c2c2a;
+      --baseline:        #383835;
+      --border:          rgba(255,255,255,0.10);
+      --series-accent:   #3987e5;
+      --series-accent-wash: rgba(57,135,229,0.20);
+      --series-prior:    #52514e;
+      --series-prior-wash: rgba(137,135,129,0.18);
+      --series-2:        #1fae1f;
+      --series-3:        #d55181;
+      --series-4:        #c98500;
+      --good:            #0ca30c;
+      --critical:        #e66767;
+      --navy:            #0c1424;
+      --navy-2:          #14213d;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:            #0d0d0d;
+    --surface-1:       #1a1a19;
+    --text-primary:    #ffffff;
+    --text-secondary:  #c3c2b7;
+    --text-muted:      #898781;
+    --grid:            #2c2c2a;
+    --baseline:        #383835;
+    --border:          rgba(255,255,255,0.10);
+    --series-accent:   #3987e5;
+    --series-accent-wash: rgba(57,135,229,0.20);
+    --series-prior:    #52514e;
+    --series-prior-wash: rgba(137,135,129,0.18);
+    --series-2:        #1fae1f;
+    --series-3:        #d55181;
+    --series-4:        #c98500;
+    --good:            #0ca30c;
+    --critical:        #e66767;
+    --navy:            #0c1424;
+    --navy-2:          #14213d;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1600px; margin: 0 auto; padding: 0 0 32px; }
+
+  /* ---------- Header ---------- */
+  header.topbar {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    color: #fff;
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand .mark {
+    width: 46px; height: 46px; border-radius: 10px;
+    background: rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+  }
+  .brand h1 { font-size: 22px; margin: 0; letter-spacing: 0.02em; font-weight: 700; }
+  .brand p { margin: 3px 0 0; font-size: 14px; color: rgba(255,255,255,0.72); }
+
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; }
+  .filter-chip {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    padding: 6px 13px;
+    font-size: 13.5px;
+    color: rgba(255,255,255,0.92);
+    display: flex; flex-direction: column; gap: 2px;
+    min-width: 96px;
+  }
+  .filter-chip span.lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.55); }
+  .filter-chip span.val { font-weight: 600; display:flex; align-items:center; gap:6px; }
+  .filter-chip span.val::after { content: "▾"; font-size: 9px; opacity: 0.7; }
+  .asof { font-size: 13.5px; color: rgba(255,255,255,0.65); text-align: right; white-space: nowrap; }
+
+  /* ---------- Grid ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+    padding: 20px 24px 0;
+  }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    min-width: 0;
+  }
+  .card h3 {
+    margin: 0 0 2px;
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+  }
+  .card p.sub { margin: 0 0 12px; font-size: 12.5px; color: var(--text-muted); }
+
+  /* ---------- compact cards (SKU/Vendor/Brand count, Focus/Private Brand mix) ---------- */
+  .card-compact { padding: 12px 16px; }
+  .card-compact h3 { font-size: 13px; margin-bottom: 1px; }
+  .card-compact p.sub { margin-bottom: 8px; font-size: 11.5px; }
+  .card-compact .kpi-label { font-size: 11px; }
+  .card-compact .kpi-value { font-size: 24px; }
+  .card-compact .kpi-delta { font-size: 12px; margin-top: 3px; }
+  .card-compact .kpi-prior { font-size: 11px; margin-top: 1px; }
+
+  .chip-card { display: flex; flex-direction: column; justify-content: space-between; }
+  .chip-card .kpi-label { font-size: 12.5px; }
+  .chip-card .kpi-value { font-size: 32px; }
+  .chip-card .kpi-delta { font-size: 14px; margin-top: 0; }
+  .chip-card .kpi-prior { font-size: 12.5px; margin-top: 0; }
+
+  .card-tight { padding: 14px 16px; }
+  .card-tight h3 { font-size: 13px; margin-bottom: 1px; }
+  .card-tight p.sub { margin-bottom: 4px; font-size: 11.5px; }
+
+  .col-2 { grid-column: span 2; }
+  .col-3 { grid-column: span 3; }
+  .col-4 { grid-column: span 4; }
+  .col-5 { grid-column: span 5; }
+  .col-6 { grid-column: span 6; }
+  .col-7 { grid-column: span 7; }
+  .col-8 { grid-column: span 8; }
+  .col-12 { grid-column: span 12; }
+  @media (max-width: 1100px) {
+    .col-2, .col-3, .col-4, .col-5, .col-6, .col-7, .col-8 { grid-column: span 12; }
+  }
+
+  /* ---------- KPI stat tiles ---------- */
+  .kpi-label { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; }
+  .kpi-body { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 6px; }
+  .kpi-value { font-size: 32px; font-weight: 700; line-height: 1.1; }
+  .kpi-delta { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 4px; margin-top: 5px; }
+  .kpi-delta.good { color: var(--good); }
+  .kpi-delta.bad { color: var(--critical); }
+  .kpi-left { flex: none; }
+  .kpi-spark { flex: 1 1 auto; min-width: 70px; margin-left: 10px; cursor: crosshair; }
+  .kpi-prior { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ---------- share bars (focus / private brand) ---------- */
+  .share-bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--grid); }
+  .share-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; cursor: default; }
+  .share-legend { display: flex; justify-content: space-between; margin-top: 8px; gap: 10px; }
+  .legend-key { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex: none; }
+  .legend-block { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .legend-top { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .legend-name { font-size: 11.5px; color: var(--text-secondary); font-weight: 600; white-space: nowrap; }
+  .legend-bottom { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legend-net { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .legend-diff { font-weight: 700; font-size: 11px; white-space: nowrap; }
+  .legend-diff.good { color: var(--good); }
+  .legend-diff.bad { color: var(--critical); }
+
+  /* ---------- bar list (ranking charts) ---------- */
+  .bar-row { display: grid; grid-template-columns: 120px 1fr 82px 72px; align-items: center; gap: 10px; padding: 6px 0; }
+  .bar-row .lbl { font-size: 13.5px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-row-stacked { padding: 7px 0; }
+  .bar-row-stacked .lbl-line { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; gap: 8px; }
+  .bar-row-stacked .lbl { font-size: 13.5px; color: var(--text-primary); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-row-stacked .track-line { display: grid; grid-template-columns: 1fr 82px 72px; align-items: center; gap: 10px; }
+  .bar-track { position: relative; height: 19px; background: var(--grid); border-radius: 3px; overflow: visible; }
+  .bar-fill { position: absolute; left: 0; top: 0; height: 100%; background: var(--series-accent); border-radius: 3px; cursor: pointer; transition: filter 0.1s; box-shadow: inset 0 0 0 1px rgba(11,11,11,0.12); }
+  .bar-fill:hover { filter: brightness(1.12); }
+  .bar-val { font-size: 13.5px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .bar-delta { font-size: 12.5px; font-weight: 700; text-align: right; white-space: nowrap; }
+  .bar-delta.good { color: var(--good); }
+  .bar-delta.bad { color: var(--critical); }
+  .bar-list-header { padding-bottom: 4px; border-bottom: 1px solid var(--grid); margin-bottom: 4px; }
+  .bar-list-header .lbl-line { min-height: 0; margin-bottom: 0; }
+  .col-header { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700; text-align: right; }
+
+
+  /* ---------- trend chart ---------- */
+  .trend-legend { display: flex; gap: 16px; margin-bottom: 6px; font-size: 13px; color: var(--text-secondary); }
+  .legend-line { width: 14px; height: 2px; display: inline-block; border-radius: 1px; }
+
+  /* ---------- donut chart ---------- */
+  .donut-top-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-bottom: 4px; font-size: 12.5px; color: var(--text-secondary); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+
+  .detail-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+  .detail-table.trend-detail { margin-top: 18px; font-size: 13.5px; }
+  .detail-table.trend-detail th, .detail-table.trend-detail td { padding: 8px 10px; }
+  .detail-table th { text-align: right; font-size: 10.5px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; padding: 5px 6px; border-bottom: 1px solid var(--grid); }
+  .detail-table th:first-child, .detail-table td:first-child { text-align: left; }
+  .detail-table td { text-align: right; padding: 6px; border-bottom: 1px solid var(--grid); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .detail-table tr:hover td { background: var(--series-accent-wash); }
+
+  /* ---------- table ---------- */
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.data-table th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted); font-weight: 700; padding: 7px 9px; border-bottom: 1px solid var(--grid);
+  }
+  table.data-table td { padding: 8px 9px; border-bottom: 1px solid var(--grid); color: var(--text-secondary); }
+  table.data-table td.num, table.data-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data-table tr:hover td { background: var(--series-accent-wash); }
+  table.data-table td.rank { color: var(--text-muted); width: 28px; }
+  table.data-table td.name { color: var(--text-primary); font-weight: 600; max-width: 320px; }
+
+  footer.note { padding: 14px 28px 4px; font-size: 12.5px; color: var(--text-muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+
+  /* ---------- tooltip ---------- */
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 11px; font-size: 13px; color: var(--text-primary);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    opacity: 0; transition: opacity 0.08s;
+    max-width: 260px;
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  }
+  #tooltip.show { opacity: 1; }
+  #tooltip .tt-title { font-weight: 700; margin-bottom: 5px; }
+  #tooltip .tt-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  #tooltip .tt-key { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  #tooltip .tt-swatch { width: 11px; height: 2px; display: inline-block; }
+  #tooltip .tt-val { font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 12h4l2-4 4 8 2-4h4" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <h1 id="title">PORT FITTING OVERVIEW</h1>
+        <p id="subtitle">Sales Performance</p>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="filter-chip"><span class="lbl">Year</span><span class="val">2026 (YTD Mar)</span></div>
+      <div class="filter-chip"><span class="lbl">Zone</span><span class="val">All</span></div>
+      <div class="filter-chip"><span class="lbl">Sales Office</span><span class="val">All</span></div>
+      <div class="filter-chip"><span class="lbl">Channel</span><span class="val">All</span></div>
+      <div class="filter-chip"><span class="lbl">Vendor</span><span class="val">All</span></div>
+      <div class="filter-chip"><span class="lbl">Brand</span><span class="val">All</span></div>
+    </div>
+    <div class="asof" id="asof">Data as of : —</div>
+  </header>
+
+  <div class="grid">
+    <!-- KPI row -->
+    <div class="card col-3" id="kpi-netSales"></div>
+    <div class="card col-3" id="kpi-qty"></div>
+    <div class="card col-3" id="kpi-avgPrice"></div>
+    <div class="card col-3" id="kpi-margin"></div>
+
+    <!-- Count chips + mix -->
+    <div class="card card-compact chip-card col-2" id="chip-sku"></div>
+    <div class="card card-compact chip-card col-2" id="chip-vendor"></div>
+    <div class="card card-compact chip-card col-2" id="chip-brand"></div>
+    <div class="card card-compact col-3" id="mix-focus"></div>
+    <div class="card card-compact col-3" id="mix-privateBrand"></div>
+
+    <!-- Sales Office (30%) + Net Sales Trend (70%) -->
+    <div class="card col-4" id="chart-office"></div>
+    <div class="card col-8" id="chart-trend"></div>
+
+    <!-- Channel Donut / Product Group Donut / Price Segment Donut -->
+    <div class="card card-tight col-4" id="chart-channel"></div>
+    <div class="card card-tight col-4" id="chart-productGroup"></div>
+    <div class="card card-tight col-4" id="chart-priceSegment"></div>
+
+    <!-- Color group / Top Vendor / Top Brand -->
+    <div class="card card-tight col-4" id="chart-colorGroup"></div>
+    <div class="card card-tight col-4" id="chart-vendor"></div>
+    <div class="card card-tight col-4" id="chart-brand"></div>
+
+    <!-- Hero products table -->
+    <div class="card col-12" id="table-hero"></div>
+  </div>
+
+  <footer class="note">
+    <span>Source: Internal Sales Data (Data from ds) &middot; YoY compared with the same period last year (Jan&ndash;Mar 2025)</span>
+    <span>Prototype dashboard &middot; to be wired to live data via Tableau Extensions API</span>
+  </footer>
+</div>
+
+<div id="tooltip"></div>
+
+<script src="tableau.extensions.1.latest.js"></script>
+<script>
+
+/* ---------------- formatting helpers ---------------- */
+function fmtCompact(n, digits) {
+  digits = digits === undefined ? 2 : digits;
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n/1e9).toFixed(digits) + 'B';
+  if (abs >= 1e6) return (n/1e6).toFixed(digits) + 'M';
+  if (abs >= 1e3) return (n/1e3).toFixed(digits) + 'K';
+  return n.toFixed(0);
+}
+function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
+function fmtMoney(n) { return fmtCompact(n, 2); }
+function fmtPct(n, digits) {
+  digits = digits === undefined ? 2 : digits;
+  const sign = n > 0 ? '+' : '';
+  return sign + (n*100).toFixed(digits) + '%';
+}
+function growthClass(g) { return g >= 0 ? 'good' : 'bad'; }
+function growthCell(g) { return { text: arrow(g) + ' ' + fmtPct(g), color: g >= 0 ? 'var(--good)' : 'var(--critical)' }; }
+function readableTextColor(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return '#ffffff';
+  const [r, g, b] = [m[1], m[2], m[3]].map(x => parseInt(x, 16) / 255);
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.6 ? '#0b0b0b' : '#ffffff';
+}
+function arrow(g) { return g >= 0 ? '▲' : '▼'; }
+
+/* ---------------- tooltip ---------------- */
+const tooltipEl = document.getElementById('tooltip');
+function showTooltip(x, y, buildFn) {
+  tooltipEl.innerHTML = '';
+  buildFn(tooltipEl);
+  tooltipEl.classList.add('show');
+  const rect = tooltipEl.getBoundingClientRect();
+  let left = x + 14, top = y + 14;
+  if (left + rect.width > window.innerWidth - 8) left = x - rect.width - 14;
+  if (top + rect.height > window.innerHeight - 8) top = y - rect.height - 14;
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = top + 'px';
+}
+function hideTooltip() { tooltipEl.classList.remove('show'); }
+function ttRow(parent, keyLabel, keyColor, value) {
+  const row = document.createElement('div');
+  row.className = 'tt-row';
+  const key = document.createElement('span');
+  key.className = 'tt-key';
+  if (keyColor) {
+    const sw = document.createElement('span');
+    sw.className = 'tt-swatch';
+    sw.style.background = keyColor;
+    key.appendChild(sw);
+  }
+  const keyText = document.createElement('span');
+  keyText.textContent = keyLabel;
+  key.appendChild(keyText);
+  const val = document.createElement('span');
+  val.className = 'tt-val';
+  val.textContent = value;
+  row.appendChild(key);
+  row.appendChild(val);
+  parent.appendChild(row);
+}
+function ttTitle(parent, text) {
+  const t = document.createElement('div');
+  t.className = 'tt-title';
+  t.textContent = text;
+  parent.appendChild(t);
+}
+
+/* ---------------- sparkline (with hover tooltip) ---------------- */
+function smoothPathFor(idxs, pts) {
+  if (idxs.length === 0) return '';
+  if (idxs.length === 1) { const p = pts[idxs[0]]; return 'M' + p[0].toFixed(1) + ',' + p[1].toFixed(1); }
+  let d = 'M' + pts[idxs[0]][0].toFixed(1) + ',' + pts[idxs[0]][1].toFixed(1);
+  for (let k = 0; k < idxs.length - 1; k++) {
+    const p0 = pts[idxs[Math.max(0, k - 1)]];
+    const p1 = pts[idxs[k]];
+    const p2 = pts[idxs[k + 1]];
+    const p3 = pts[idxs[Math.min(idxs.length - 1, k + 2)]];
+    const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ' C' + cp1x.toFixed(1) + ',' + cp1y.toFixed(1) + ' ' + cp2x.toFixed(1) + ',' + cp2y.toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+  }
+  return d;
+}
+function renderSparkline(values, splitIndex, pointLabels) {
+  const w = 180, h = 44, pad = 6;
+  const min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  const range = (max - min) || 1;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - pad*2);
+    const y = h - pad - ((v - min) / range) * (h - pad*2);
+    return [x, y];
+  });
+  const allIdx = pts.map((_, i) => i);
+  const linePath = smoothPathFor(allIdx, pts);
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', h); svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.style.overflow = 'visible';
+  svg.style.display = 'block';
+
+  const baseY = h - pad;
+  const area = document.createElementNS(svgNS, 'path');
+  area.setAttribute('d', linePath + ' L' + pts[pts.length - 1][0].toFixed(1) + ',' + baseY + ' L' + pts[0][0].toFixed(1) + ',' + baseY + ' Z');
+  area.setAttribute('fill', 'var(--series-accent-wash)');
+  area.setAttribute('stroke', 'none');
+  svg.appendChild(area);
+
+  const line = document.createElementNS(svgNS, 'path');
+  line.setAttribute('d', linePath); line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', 'var(--series-accent)'); line.setAttribute('stroke-width', '3');
+  line.setAttribute('stroke-linecap', 'round'); line.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(line);
+
+  pts.forEach((pt, i) => {
+    const dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('cx', pt[0]); dot.setAttribute('cy', pt[1]); dot.setAttribute('r', i === pts.length - 1 ? 3.5 : 2.5);
+    dot.setAttribute('fill', 'var(--series-accent)');
+    dot.setAttribute('stroke', 'var(--surface-1)'); dot.setAttribute('stroke-width', '1.5');
+    svg.appendChild(dot);
+    const hit = document.createElementNS(svgNS, 'circle');
+    hit.setAttribute('cx', pt[0]); hit.setAttribute('cy', pt[1]); hit.setAttribute('r', 8);
+    hit.setAttribute('fill', 'transparent');
+    hit.addEventListener('pointermove', (e) => {
+      showTooltip(e.clientX, e.clientY, (tt) => {
+        ttTitle(tt, pointLabels ? pointLabels[i] : 'Point ' + (i+1));
+        ttRow(tt, 'Value', 'var(--series-accent)', typeof values[i] === 'number' ? fmtCompact(values[i]) : values[i]);
+      });
+    });
+    hit.addEventListener('pointerleave', hideTooltip);
+    svg.appendChild(hit);
+  });
+  return svg;
+}
+
+/* ---------------- KPI tile ---------------- */
+function renderKpiTile(container, opts) {
+  const growth = (opts.v2026 - opts.v2025) / opts.v2025;
+  const label = document.createElement('div'); label.className = 'kpi-label'; label.textContent = opts.label;
+  container.appendChild(label);
+  const body = document.createElement('div'); body.className = 'kpi-body';
+  const left = document.createElement('div'); left.className = 'kpi-left';
+  const val = document.createElement('div'); val.className = 'kpi-value'; val.textContent = opts.formatValue(opts.v2026);
+  left.appendChild(val);
+  const delta = document.createElement('div'); delta.className = 'kpi-delta ' + growthClass(growth);
+  delta.textContent = arrow(growth) + ' ' + fmtPct(growth) + ' YoY';
+  left.appendChild(delta);
+  const prior = document.createElement('div'); prior.className = 'kpi-prior';
+  prior.textContent = 'vs Jan–Mar 2025: ' + opts.formatValue(opts.v2025);
+  left.appendChild(prior);
+  body.appendChild(left);
+  if (opts.sparkline) {
+    const spark = document.createElement('div'); spark.className = 'kpi-spark';
+    spark.appendChild(renderSparkline(opts.sparkline, 3, DATA.sparkLabels));
+    body.appendChild(spark);
+  }
+  container.appendChild(body);
+}
+
+/* ---------------- chip tile ---------------- */
+function renderChip(container, label, v2026, v2025) {
+  const growth = (v2026 - v2025) / v2025;
+  const lbl = document.createElement('div'); lbl.className = 'kpi-label'; lbl.textContent = label;
+  container.appendChild(lbl);
+  const val = document.createElement('div'); val.className = 'kpi-value'; val.textContent = fmtInt(v2026);
+  container.appendChild(val);
+  const delta = document.createElement('div'); delta.className = 'kpi-delta ' + growthClass(growth);
+  delta.textContent = arrow(growth) + ' ' + fmtPct(growth) + ' YoY';
+  container.appendChild(delta);
+  const prior = document.createElement('div'); prior.className = 'kpi-prior';
+  prior.textContent = 'vs 2025: ' + fmtInt(v2025);
+  container.appendChild(prior);
+  container.addEventListener('pointermove', (e) => {
+    showTooltip(e.clientX, e.clientY, (tt) => {
+      ttTitle(tt, label);
+      ttRow(tt, '2026', 'var(--series-accent)', fmtInt(v2026));
+      ttRow(tt, '2025', 'var(--series-prior)', fmtInt(v2025));
+      ttRow(tt, 'Growth', null, fmtPct(growth));
+    });
+  });
+  container.addEventListener('pointerleave', hideTooltip);
+}
+
+/* ---------------- share bar (2-category part-to-whole) ---------------- */
+function renderShareBar(container, title, sub, items, colors) {
+  const h = document.createElement('h3'); h.textContent = title; container.appendChild(h);
+  const p = document.createElement('p'); p.className = 'sub'; p.textContent = sub; container.appendChild(p);
+  const total = items.reduce((s, it) => s + it.netSales, 0);
+  const bar = document.createElement('div'); bar.className = 'share-bar';
+  items.forEach((it, i) => {
+    const share = it.netSales / total;
+    const seg = document.createElement('div');
+    seg.className = 'share-seg';
+    seg.style.width = (share*100) + '%';
+    seg.style.background = colors[i % colors.length];
+    seg.style.color = readableTextColor(colors[i % colors.length]);
+    if (share > 0.12) seg.textContent = (share*100).toFixed(0) + '%';
+    seg.addEventListener('pointermove', (e) => {
+      showTooltip(e.clientX, e.clientY, (tt) => {
+        ttTitle(tt, it.k);
+        ttRow(tt, 'Net Sales 2026', colors[i % colors.length], fmtMoney(it.netSales));
+        ttRow(tt, 'vs 2025', null, fmtMoney(it.prior));
+        const g = (it.netSales - it.prior) / it.prior;
+        ttRow(tt, 'Growth', null, fmtPct(g));
+      });
+    });
+    seg.addEventListener('pointerleave', hideTooltip);
+    bar.appendChild(seg);
+  });
+  container.appendChild(bar);
+  const legend = document.createElement('div'); legend.className = 'share-legend';
+  items.forEach((it, i) => {
+    const share = it.netSales / total;
+    const g = it.growth !== undefined ? it.growth : (it.netSales - it.prior) / it.prior;
+    const block = document.createElement('div'); block.className = 'legend-block';
+    const top = document.createElement('div'); top.className = 'legend-top';
+    const sw = document.createElement('span'); sw.className = 'legend-swatch'; sw.style.background = colors[i % colors.length];
+    top.appendChild(sw);
+    const name = document.createElement('span'); name.className = 'legend-name'; name.textContent = it.k + ' ' + (share*100).toFixed(0) + '%';
+    top.appendChild(name);
+    block.appendChild(top);
+    const bottom = document.createElement('div'); bottom.className = 'legend-bottom';
+    const net = document.createElement('span'); net.className = 'legend-net'; net.textContent = fmtMoney(it.netSales);
+    bottom.appendChild(net);
+    const diff = document.createElement('span'); diff.className = 'legend-diff ' + growthClass(g);
+    diff.textContent = arrow(g) + ' ' + fmtPct(g);
+    bottom.appendChild(diff);
+    block.appendChild(bottom);
+    legend.appendChild(block);
+  });
+  container.appendChild(legend);
+}
+
+/* ---------------- ranking bar list (side-by-side or stacked) ---------------- */
+function renderBarList(container, title, sub, items, opts) {
+  opts = opts || {};
+  const h = document.createElement('h3'); h.textContent = title; container.appendChild(h);
+  const p = document.createElement('p'); p.className = 'sub'; p.textContent = sub; container.appendChild(p);
+  const maxVal = Math.max.apply(null, items.map(it => it.netSales));
+  const totalVal = items.reduce((s, it) => s + it.netSales, 0);
+  function labelFor(it) {
+    return opts.showShare ? it.k + ' (' + ((it.netSales / totalVal) * 100).toFixed(0) + '%)' : it.k;
+  }
+
+  const headerRow = document.createElement('div');
+  headerRow.className = opts.stacked ? 'bar-row-stacked bar-list-header' : 'bar-row bar-list-header';
+  if (opts.stacked) {
+    const spacerLbl = document.createElement('div'); spacerLbl.className = 'lbl-line';
+    headerRow.appendChild(spacerLbl);
+    const trackLine = document.createElement('div'); trackLine.className = 'track-line';
+    trackLine.appendChild(document.createElement('div'));
+    const netH = document.createElement('div'); netH.className = 'col-header'; netH.textContent = 'Net Sales'; trackLine.appendChild(netH);
+    const growH = document.createElement('div'); growH.className = 'col-header'; growH.textContent = '%Growth'; trackLine.appendChild(growH);
+    headerRow.appendChild(trackLine);
+  } else {
+    if (opts.labelWidth) headerRow.style.gridTemplateColumns = opts.labelWidth + 'px 1fr 82px 72px';
+    headerRow.appendChild(document.createElement('div'));
+    headerRow.appendChild(document.createElement('div'));
+    const netH = document.createElement('div'); netH.className = 'col-header'; netH.textContent = 'Net Sales'; headerRow.appendChild(netH);
+    const growH = document.createElement('div'); growH.className = 'col-header'; growH.textContent = '%Growth'; headerRow.appendChild(growH);
+  }
+  container.appendChild(headerRow);
+
+  let target = container;
+  if (opts.fillHeight) {
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    target = document.createElement('div');
+    target.style.flex = '1';
+    target.style.display = 'flex';
+    target.style.flexDirection = 'column';
+    target.style.justifyContent = 'space-between';
+    container.appendChild(target);
+  }
+
+  items.forEach(it => {
+    const g = it.growth !== undefined ? it.growth : (it.netSales - it.prior) / it.prior;
+    const color = (opts.colorFor && opts.colorFor(it)) || 'var(--series-accent)';
+    const tooltipFn = (tt) => {
+      ttTitle(tt, it.k);
+      ttRow(tt, 'Net Sales 2026', color, fmtMoney(it.netSales));
+      ttRow(tt, 'vs 2025', null, fmtMoney(it.prior));
+      ttRow(tt, 'Growth', null, fmtPct(g));
+      if (it.sku) ttRow(tt, 'SKU count', null, fmtInt(it.sku));
+    };
+    if (opts.stacked) {
+      const row = document.createElement('div'); row.className = 'bar-row-stacked';
+      if (opts.compact) row.style.padding = '4px 0';
+      const lblLine = document.createElement('div'); lblLine.className = 'lbl-line';
+      const lbl = document.createElement('span'); lbl.className = 'lbl'; lbl.textContent = labelFor(it); lbl.title = it.k;
+      lblLine.appendChild(lbl);
+      row.appendChild(lblLine);
+      const trackLine = document.createElement('div'); trackLine.className = 'track-line';
+      const track = document.createElement('div'); track.className = 'bar-track';
+      if (opts.compact) track.style.height = '12px';
+      const fill = document.createElement('div'); fill.className = 'bar-fill'; fill.style.background = color;
+      fill.style.width = ((it.netSales / maxVal) * 100) + '%';
+      fill.addEventListener('pointermove', (e) => showTooltip(e.clientX, e.clientY, tooltipFn));
+      fill.addEventListener('pointerleave', hideTooltip);
+      track.appendChild(fill);
+      trackLine.appendChild(track);
+      const val = document.createElement('div'); val.className = 'bar-val'; val.textContent = fmtMoney(it.netSales);
+      trackLine.appendChild(val);
+      const delta = document.createElement('div'); delta.className = 'bar-delta ' + growthClass(g); delta.textContent = arrow(g) + ' ' + fmtPct(g);
+      trackLine.appendChild(delta);
+      row.appendChild(trackLine);
+      target.appendChild(row);
+    } else {
+      const row = document.createElement('div'); row.className = 'bar-row';
+      if (opts.labelWidth) row.style.gridTemplateColumns = opts.labelWidth + 'px 1fr 82px 72px';
+      if (opts.compact) row.style.padding = '3px 0';
+      const lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = labelFor(it); lbl.title = it.k;
+      row.appendChild(lbl);
+      const track = document.createElement('div'); track.className = 'bar-track';
+      if (opts.compact) track.style.height = '12px';
+      const fill = document.createElement('div'); fill.className = 'bar-fill'; fill.style.background = color;
+      fill.style.width = ((it.netSales / maxVal) * 100) + '%';
+      fill.addEventListener('pointermove', (e) => showTooltip(e.clientX, e.clientY, tooltipFn));
+      fill.addEventListener('pointerleave', hideTooltip);
+      track.appendChild(fill);
+      row.appendChild(track);
+      const val = document.createElement('div'); val.className = 'bar-val'; val.textContent = fmtMoney(it.netSales);
+      row.appendChild(val);
+      const delta = document.createElement('div'); delta.className = 'bar-delta ' + growthClass(g); delta.textContent = arrow(g) + ' ' + fmtPct(g);
+      row.appendChild(delta);
+      target.appendChild(row);
+    }
+  });
+}
+
+/* ---------------- donut chart ---------------- */
+function polarToCartesian(cx, cy, r, angleDeg) {
+  const a = (angleDeg - 90) * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+function donutArcPath(cx, cy, rOuter, rInner, startAngle, endAngle) {
+  const startOuter = polarToCartesian(cx, cy, rOuter, startAngle);
+  const endOuter = polarToCartesian(cx, cy, rOuter, endAngle);
+  const startInner = polarToCartesian(cx, cy, rInner, endAngle);
+  const endInner = polarToCartesian(cx, cy, rInner, startAngle);
+  const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
+  return [
+    'M', startOuter[0].toFixed(2), startOuter[1].toFixed(2),
+    'A', rOuter, rOuter, 0, largeArc, 1, endOuter[0].toFixed(2), endOuter[1].toFixed(2),
+    'L', startInner[0].toFixed(2), startInner[1].toFixed(2),
+    'A', rInner, rInner, 0, largeArc, 0, endInner[0].toFixed(2), endInner[1].toFixed(2),
+    'Z'
+  ].join(' ');
+}
+function renderDonut(container, title, sub, items, colors, opts) {
+  opts = opts || {};
+  const h = document.createElement('h3'); h.textContent = title; container.appendChild(h);
+  const p = document.createElement('p'); p.className = 'sub'; p.textContent = sub; container.appendChild(p);
+
+  const total = items.reduce((s, it) => s + it.netSales, 0);
+
+  // top legend row: color dot + name
+  const topLegend = document.createElement('div'); topLegend.className = 'donut-top-legend';
+  items.forEach((it, i) => {
+    const key = document.createElement('span'); key.className = 'legend-key';
+    const dot = document.createElement('span'); dot.className = 'legend-dot'; dot.style.background = colors[i % colors.length];
+    key.appendChild(dot);
+    const txt = document.createElement('span'); txt.textContent = it.k;
+    key.appendChild(txt);
+    topLegend.appendChild(key);
+  });
+  container.appendChild(topLegend);
+
+  const vw = 340, vh = 200, cx = vw / 2, cy = vh / 2, rOuter = 54, rInner = 44;
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + vw + ' ' + vh);
+  svg.setAttribute('width', '100%');
+  svg.style.display = 'block';
+  svg.style.height = 'auto';
+  svg.style.overflow = 'visible';
+
+  let angle = 0;
+  const segMeta = [];
+  items.forEach((it, i) => {
+    const share = it.netSales / total;
+    const sweep = share * 360;
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', donutArcPath(cx, cy, rOuter, rInner, angle, angle + sweep));
+    path.setAttribute('fill', colors[i % colors.length]);
+    path.setAttribute('stroke', 'var(--surface-1)');
+    path.setAttribute('stroke-width', '2');
+    path.style.cursor = 'pointer';
+    path.addEventListener('pointermove', (e) => {
+      showTooltip(e.clientX, e.clientY, (tt) => {
+        ttTitle(tt, it.k);
+        ttRow(tt, 'Net Sales 2026', colors[i % colors.length], fmtMoney(it.netSales));
+        ttRow(tt, 'Share', null, (share*100).toFixed(1) + '%');
+        ttRow(tt, 'vs 2025', null, fmtMoney(it.prior));
+        ttRow(tt, 'Growth', null, fmtPct(it.growth));
+      });
+    });
+    path.addEventListener('pointerleave', hideTooltip);
+    svg.appendChild(path);
+    segMeta.push({ it, share, mid: angle + sweep / 2 });
+    angle += sweep;
+  });
+
+  // direct labels with leader lines (name - share%), matching the requested style
+  segMeta.forEach(({ it, share, mid }, i) => {
+    const outer = polarToCartesian(cx, cy, rOuter, mid);
+    const elbow = polarToCartesian(cx, cy, rOuter + 6, mid);
+    const rightSide = elbow[0] >= cx;
+    const labelX = elbow[0] + (rightSide ? 6 : -6);
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', 'M' + outer[0].toFixed(1) + ',' + outer[1].toFixed(1) + ' L' + elbow[0].toFixed(1) + ',' + elbow[1].toFixed(1) + ' L' + labelX.toFixed(1) + ',' + elbow[1].toFixed(1));
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'var(--text-muted)');
+    path.setAttribute('stroke-width', '1');
+    svg.appendChild(path);
+
+    const labelAnchorX = labelX + (rightSide ? 3 : -3);
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', labelAnchorX);
+    label.setAttribute('y', elbow[1] - 5);
+    label.setAttribute('dy', '0.32em');
+    label.setAttribute('text-anchor', rightSide ? 'start' : 'end');
+    label.setAttribute('font-size', '10');
+    label.setAttribute('font-weight', '600');
+    label.setAttribute('fill', 'var(--text-secondary)');
+    label.textContent = it.k + ' - ' + (share*100).toFixed(2) + ' %';
+    svg.appendChild(label);
+
+    const g = it.growth;
+    const subLabel = document.createElementNS(svgNS, 'text');
+    subLabel.setAttribute('x', labelAnchorX);
+    subLabel.setAttribute('y', elbow[1] + 8);
+    subLabel.setAttribute('dy', '0.32em');
+    subLabel.setAttribute('text-anchor', rightSide ? 'start' : 'end');
+    subLabel.setAttribute('font-size', '9');
+    subLabel.setAttribute('fill', 'var(--text-muted)');
+    const tspanMoney = document.createElementNS(svgNS, 'tspan');
+    tspanMoney.textContent = fmtMoney(it.netSales) + ' (';
+    subLabel.appendChild(tspanMoney);
+    const tspanGrowth = document.createElementNS(svgNS, 'tspan');
+    tspanGrowth.setAttribute('fill', g >= 0 ? 'var(--good)' : 'var(--critical)');
+    tspanGrowth.setAttribute('font-weight', '700');
+    tspanGrowth.textContent = arrow(g) + ' ' + fmtPct(g);
+    subLabel.appendChild(tspanGrowth);
+    const tspanClose = document.createElementNS(svgNS, 'tspan');
+    tspanClose.textContent = ')';
+    subLabel.appendChild(tspanClose);
+    svg.appendChild(subLabel);
+  });
+
+  const centerVal = document.createElementNS(svgNS, 'text');
+  centerVal.setAttribute('x', cx); centerVal.setAttribute('y', cy - 3);
+  centerVal.setAttribute('text-anchor', 'middle'); centerVal.setAttribute('font-size', '15');
+  centerVal.setAttribute('font-weight', '700'); centerVal.setAttribute('fill', 'var(--text-primary)');
+  centerVal.textContent = fmtMoney(total);
+  svg.appendChild(centerVal);
+  const centerLbl = document.createElementNS(svgNS, 'text');
+  centerLbl.setAttribute('x', cx); centerLbl.setAttribute('y', cy + 14);
+  centerLbl.setAttribute('text-anchor', 'middle'); centerLbl.setAttribute('font-size', '9.5');
+  centerLbl.setAttribute('fill', 'var(--text-muted)');
+  centerLbl.textContent = 'Total Net Sales';
+  svg.appendChild(centerLbl);
+
+  container.appendChild(svg);
+
+  if (opts.detailRows) {
+    const table = document.createElement('table'); table.className = 'detail-table';
+    const thead = document.createElement('thead'); const htr = document.createElement('tr');
+    opts.detailHeaders.forEach(hh => { const th = document.createElement('th'); th.textContent = hh; htr.appendChild(th); });
+    thead.appendChild(htr); table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    opts.detailRows.forEach(r => {
+      const tr = document.createElement('tr');
+      r.forEach(cell => {
+        const td = document.createElement('td');
+        if (cell && typeof cell === 'object') {
+          td.textContent = cell.text;
+          if (cell.color) td.style.color = cell.color;
+        } else {
+          td.textContent = cell;
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.appendChild(table);
+  }
+}
+
+/* ---------------- trend area chart with per-point growth labels ---------------- */
+function renderTrendChart(container, title, sub, months, series2025, series2026) {
+  const h = document.createElement('h3'); h.textContent = title; container.appendChild(h);
+  const p = document.createElement('p'); p.className = 'sub'; p.textContent = sub; container.appendChild(p);
+
+  const legend = document.createElement('div'); legend.className = 'trend-legend';
+  [['2026', 'var(--series-accent)'], ['2025', 'var(--series-prior)']].forEach(([label, color]) => {
+    const key = document.createElement('span'); key.className = 'legend-key';
+    const line = document.createElement('span'); line.className = 'legend-line'; line.style.background = color;
+    key.appendChild(line);
+    const txt = document.createElement('span'); txt.textContent = label;
+    key.appendChild(txt);
+    legend.appendChild(key);
+  });
+  container.appendChild(legend);
+
+  const containerRect = container.getBoundingClientRect();
+  const containerStyle = getComputedStyle(container);
+  const availWidth = containerRect.width - parseFloat(containerStyle.paddingLeft) - parseFloat(containerStyle.paddingRight);
+  const w = Math.max(availWidth, 300), h2 = 300, padL = 50, padR = 24, padT = 44, padB = 32;
+  const plotW = w - padL - padR, plotH = h2 - padT - padB;
+  const allVals = series2025.concat(series2026);
+  const maxV = Math.max.apply(null, allVals);
+  const niceMax = Math.ceil((maxV * 1.1) / 5e6) * 5e6;
+  const n = months.length;
+  function xFor(i) { return padL + (n === 1 ? plotW/2 : (i / (n - 1)) * plotW); }
+  function yFor(v) { return padT + plotH - (v / niceMax) * plotH; }
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h2);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', h2);
+  svg.style.display = 'block';
+  svg.style.overflow = 'visible';
+
+  const steps = 5;
+  for (let s = 0; s <= steps; s++) {
+    const v = (niceMax / steps) * s;
+    const y = yFor(v);
+    const txt = document.createElementNS(svgNS, 'text');
+    txt.setAttribute('x', padL - 10); txt.setAttribute('y', y + 4);
+    txt.setAttribute('text-anchor', 'end'); txt.setAttribute('font-size', '10.5');
+    txt.setAttribute('fill', 'var(--text-muted)');
+    txt.textContent = fmtCompact(v, 0);
+    svg.appendChild(txt);
+  }
+  const baseline = document.createElementNS(svgNS, 'line');
+  baseline.setAttribute('x1', padL); baseline.setAttribute('x2', w - padR);
+  baseline.setAttribute('y1', yFor(0)); baseline.setAttribute('y2', yFor(0));
+  baseline.setAttribute('stroke', 'var(--baseline)'); baseline.setAttribute('stroke-width', '1');
+  svg.appendChild(baseline);
+  months.forEach((m, i) => {
+    const txt = document.createElementNS(svgNS, 'text');
+    txt.setAttribute('x', xFor(i)); txt.setAttribute('y', h2 - 8);
+    txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('font-size', '11.5');
+    txt.setAttribute('font-weight', '600');
+    txt.setAttribute('fill', 'var(--text-secondary)');
+    txt.textContent = m;
+    svg.appendChild(txt);
+  });
+
+  function drawArea(values, color) {
+    const pts = values.map((v, i) => [xFor(i), yFor(v)]);
+    const base = yFor(0);
+    const curve = smoothPathFor(pts.map((_, i) => i), pts);
+    const d = curve + ' L' + pts[pts.length - 1][0].toFixed(1) + ',' + base + ' L' + pts[0][0].toFixed(1) + ',' + base + ' Z';
+    const area = document.createElementNS(svgNS, 'path');
+    area.setAttribute('d', d);
+    area.setAttribute('fill', color);
+    area.setAttribute('stroke', 'none');
+    svg.appendChild(area);
+  }
+  function drawLine(values, color) {
+    const pts = values.map((v, i) => [xFor(i), yFor(v)]);
+    const path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', smoothPathFor(pts.map((_, i) => i), pts));
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '2.5');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path);
+    pts.forEach((pt) => {
+      const dot = document.createElementNS(svgNS, 'circle');
+      dot.setAttribute('cx', pt[0]); dot.setAttribute('cy', pt[1]); dot.setAttribute('r', 5);
+      dot.setAttribute('fill', color); dot.setAttribute('stroke', 'var(--surface-1)'); dot.setAttribute('stroke-width', '2');
+      svg.appendChild(dot);
+    });
+    return pts;
+  }
+
+  drawArea(series2025, 'var(--series-prior-wash)');
+  drawArea(series2026, 'var(--series-accent-wash)');
+  drawLine(series2025, 'var(--series-prior)');
+  const pts2026 = drawLine(series2026, 'var(--series-accent)');
+
+  // Net Sales value + growth% (with triangle) labels above each 2026 point
+  pts2026.forEach((pt, i) => {
+    const g = (series2026[i] - series2025[i]) / series2025[i];
+    const valueLabel = document.createElementNS(svgNS, 'text');
+    valueLabel.setAttribute('x', pt[0]); valueLabel.setAttribute('y', pt[1] - 28);
+    valueLabel.setAttribute('text-anchor', 'middle'); valueLabel.setAttribute('font-size', '14');
+    valueLabel.setAttribute('font-weight', '700');
+    valueLabel.setAttribute('fill', 'var(--text-primary)');
+    valueLabel.textContent = fmtMoney(series2026[i]);
+    svg.appendChild(valueLabel);
+
+    const growthLabel = document.createElementNS(svgNS, 'text');
+    growthLabel.setAttribute('x', pt[0]); growthLabel.setAttribute('y', pt[1] - 14);
+    growthLabel.setAttribute('text-anchor', 'middle'); growthLabel.setAttribute('font-size', '13');
+    growthLabel.setAttribute('font-weight', '700');
+    growthLabel.setAttribute('fill', g >= 0 ? 'var(--good)' : 'var(--critical)');
+    growthLabel.textContent = (g >= 0 ? '▲ +' : '▼ ') + (g*100).toFixed(2) + '%';
+    svg.appendChild(growthLabel);
+  });
+
+  // crosshair + hover hit areas
+  const crosshair = document.createElementNS(svgNS, 'line');
+  crosshair.setAttribute('y1', padT); crosshair.setAttribute('y2', padT + plotH);
+  crosshair.setAttribute('stroke', 'var(--baseline)'); crosshair.setAttribute('stroke-width', '1');
+  crosshair.setAttribute('opacity', '0');
+  svg.appendChild(crosshair);
+
+  for (let i = 0; i < n; i++) {
+    const hit = document.createElementNS(svgNS, 'rect');
+    const bandW = plotW / n;
+    hit.setAttribute('x', xFor(i) - bandW/2); hit.setAttribute('y', padT);
+    hit.setAttribute('width', bandW); hit.setAttribute('height', plotH);
+    hit.setAttribute('fill', 'transparent');
+    hit.style.cursor = 'crosshair';
+    hit.addEventListener('pointermove', (e) => {
+      crosshair.setAttribute('x1', xFor(i)); crosshair.setAttribute('x2', xFor(i));
+      crosshair.setAttribute('opacity', '1');
+      showTooltip(e.clientX, e.clientY, (tt) => {
+        ttTitle(tt, months[i]);
+        ttRow(tt, '2026', 'var(--series-accent)', fmtMoney(series2026[i]));
+        ttRow(tt, '2025', 'var(--series-prior)', fmtMoney(series2025[i]));
+        const g = (series2026[i] - series2025[i]) / series2025[i];
+        ttRow(tt, 'YoY Growth', null, fmtPct(g));
+      });
+    });
+    hit.addEventListener('pointerleave', () => { crosshair.setAttribute('opacity', '0'); hideTooltip(); });
+    svg.appendChild(hit);
+  }
+
+  container.appendChild(svg);
+
+  // monthly detail table (2026 / 2025 / % Growth per month)
+  const table = document.createElement('table'); table.className = 'detail-table trend-detail';
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  const th0 = document.createElement('th'); th0.textContent = ''; th0.style.textAlign = 'left'; headRow.appendChild(th0);
+  months.forEach(m => { const th = document.createElement('th'); th.textContent = m; headRow.appendChild(th); });
+  const thTotal = document.createElement('th'); thTotal.textContent = 'Total'; thTotal.style.fontWeight = '700'; headRow.appendChild(thTotal);
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  function detailRow(label, cells, totalCell, cls) {
+    const tr = document.createElement('tr');
+    const tdLabel = document.createElement('td'); tdLabel.textContent = label; tdLabel.style.textAlign = 'left'; tdLabel.style.fontWeight = '700'; tdLabel.style.color = 'var(--text-primary)';
+    tr.appendChild(tdLabel);
+    cells.forEach(c => {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      td.textContent = c.text;
+      if (c.color) td.style.color = c.color;
+      tr.appendChild(td);
+    });
+    const tdTotal = document.createElement('td'); tdTotal.style.fontWeight = '700'; tdTotal.style.color = totalCell.color || 'var(--text-primary)';
+    tdTotal.textContent = totalCell.text;
+    tr.appendChild(tdTotal);
+    tbody.appendChild(tr);
+  }
+  const total2026 = series2026.reduce((s, v) => s + v, 0);
+  const total2025 = series2025.reduce((s, v) => s + v, 0);
+  const totalGrowth = (total2026 - total2025) / total2025;
+  detailRow('2026', series2026.map(v => ({ text: fmtMoney(v) })), { text: fmtMoney(total2026) });
+  detailRow('2025', series2025.map(v => ({ text: fmtMoney(v) })), { text: fmtMoney(total2025) });
+  detailRow('% Growth', series2026.map((v, i) => {
+    const g = (v - series2025[i]) / series2025[i];
+    return { text: arrow(g) + ' ' + fmtPct(g), color: g >= 0 ? 'var(--good)' : 'var(--critical)' };
+  }), { text: arrow(totalGrowth) + ' ' + fmtPct(totalGrowth), color: totalGrowth >= 0 ? 'var(--good)' : 'var(--critical)' });
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+/* ---------------- hero product table ---------------- */
+function renderHeroTable(container, title, sub, items) {
+  const h = document.createElement('h3'); h.textContent = title; container.appendChild(h);
+  const p = document.createElement('p'); p.className = 'sub'; p.textContent = sub; container.appendChild(p);
+  const table = document.createElement('table'); table.className = 'data-table';
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  const headers = [
+    '#', 'Article ID', 'Article Name', 'Image', 'Brand', 'Product Group', 'Mc Desc',
+    'Net Sales 2025', 'Net Sales 2026', 'Growth Net Sales',
+    'Sales Qty 2025', 'Sales Qty 2026', 'Growth Sales Qty',
+  ];
+  const numCols = new Set(['Net Sales 2025', 'Net Sales 2026', 'Growth Net Sales', 'Sales Qty 2025', 'Sales Qty 2026', 'Growth Sales Qty']);
+  headers.forEach(label => {
+    const th = document.createElement('th');
+    if (numCols.has(label)) th.className = 'num';
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  items.forEach((it, idx) => {
+    const tr = document.createElement('tr');
+
+    function addCell(text, cls, color) {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      if (color) td.style.color = color;
+      td.textContent = text;
+      tr.appendChild(td);
+    }
+    addCell(String(idx + 1), 'rank');
+    addCell(it.id);
+    addCell(it.name, 'name');
+
+    const imgTd = document.createElement('td');
+    if (it.image) {
+      const img = document.createElement('img');
+      img.src = it.image;
+      img.alt = it.name;
+      img.style.width = '40px';
+      img.style.height = '40px';
+      img.style.objectFit = 'contain';
+      img.style.borderRadius = '4px';
+      img.style.background = '#ffffff';
+      img.style.border = '1px solid var(--grid)';
+      imgTd.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.style.width = '40px';
+      placeholder.style.height = '40px';
+      placeholder.style.borderRadius = '4px';
+      placeholder.style.background = 'var(--grid)';
+      placeholder.style.display = 'flex';
+      placeholder.style.alignItems = 'center';
+      placeholder.style.justifyContent = 'center';
+      placeholder.style.fontSize = '9px';
+      placeholder.style.color = 'var(--text-muted)';
+      placeholder.textContent = 'N/A';
+      imgTd.appendChild(placeholder);
+    }
+    tr.appendChild(imgTd);
+
+    addCell(it.brand);
+    addCell(it.mch2);
+    addCell(it.mc);
+    addCell(it.netSales2025 > 0 ? fmtMoney(it.netSales2025) : '–', 'num');
+    addCell(fmtMoney(it.netSales2026), 'num');
+    if (it.netSales2025 > 0) {
+      const gc = growthCell(it.growthNetSales);
+      addCell(gc.text, 'num', gc.color);
+    } else {
+      addCell('New', 'num');
+    }
+    addCell(it.qty2025 > 0 ? fmtInt(it.qty2025) : '–', 'num');
+    addCell(fmtInt(it.qty2026), 'num');
+    if (it.qty2025 > 0) {
+      const gcq = growthCell(it.growthQty);
+      addCell(gcq.text, 'num', gcq.color);
+    } else {
+      addCell('New', 'num');
+    }
+
+    tr.addEventListener('pointermove', (e) => {
+      showTooltip(e.clientX, e.clientY, (tt) => {
+        ttTitle(tt, it.name);
+        ttRow(tt, 'Article ID', null, it.id);
+        ttRow(tt, 'Brand', null, it.brand);
+        ttRow(tt, 'Mc Desc', null, it.mc);
+        ttRow(tt, 'Net Sales 2026', 'var(--series-accent)', fmtMoney(it.netSales2026));
+        ttRow(tt, 'Net Sales 2025', 'var(--series-prior)', it.netSales2025 > 0 ? fmtMoney(it.netSales2025) : 'New in 2026');
+        ttRow(tt, 'Qty 2026', null, fmtInt(it.qty2026));
+        ttRow(tt, 'Qty 2025', null, it.qty2025 > 0 ? fmtInt(it.qty2025) : 'New in 2026');
+      });
+    });
+    tr.addEventListener('pointerleave', hideTooltip);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+
+
+/* ================= LIVE TABLEAU DATA PIPELINE ================= */
+/*
+ * Expects one worksheet at transaction-detail grain (one mark per original sales
+ * line item — every dimension below on the Detail shelf, nothing pre-aggregated
+ * away). Field names must match the source Excel column headers exactly.
+ */
+const FIELD = {
+  DATE: 'Day of Time Date',
+  CHANNEL: 'Sls Grp Desc',
+  OFFICE: 'Sls Ofc Desc',
+  ARTICLE_ID: 'Article Id',
+  ARTICLE_NAME: 'Article Name Th',
+  BRAND: 'Brand',
+  MCH1: 'Mch1 Desc',
+  MC: 'Mc Desc',
+  PRIVATE_BRAND: 'Flag_PrivateBrand',
+  VENDOR: 'Vendor Name',
+  COLOR: 'Col Name',
+  FOCUS: 'flag_focus_new (group)',
+  PRICE_CLASS: 'Class price',
+  NET_SALES: 'Net Inc Tax',
+  QTY: 'Sale Qty',
+  MARGIN: '%Margin (no tax)',
+};
+
+// Source: Data mapping.xlsx, sheet "แยกกลุ่มสีและประเภทสินค้า", columns D:Group / E:MCH2 / F:MCH1 / G:MC.
+const MCH1_TO_GROUP = {
+  'กระจกห้องน้ำ': 'ACCESSORIES', 'อุปกรณ์เสริมภายในห้องน้ำ': 'ACCESSORIES', 'อุปกรณ์แขวนผ้า': 'ACCESSORIES',
+  'อุปกรณ์จัดเก็บในห้องน้ำ': 'ACCESSORIES', 'อุปกรณ์สำหรับผู้สูงอายุ': 'ACCESSORIES',
+  'ก๊อกทรงสูง': 'FAUCET', 'ก๊อกบิเด้': 'FAUCET', 'ก๊อกยืนอาบ': 'FAUCET', 'ก๊อกล้างพื้น': 'FAUCET',
+  'ก๊อกอ่างล้างหน้า': 'FAUCET', 'ก๊อกอ่างอาบน้ำ': 'FAUCET', 'ฟลัชวาล์ว': 'FAUCET', 'วาล์ว': 'FAUCET', 'สายฉีดชำระ': 'FAUCET',
+  'ชุดฝักบัว': 'SHOWER', 'ฝักบัว': 'SHOWER',
+  'ตะแกรงท่อน้ำ': 'SPARE PARTS', 'ฝารองนั่ง': 'SPARE PARTS', 'อะไหล่ก๊อกน้ำ/ฝักบัว': 'SPARE PARTS',
+  'อะไหล่สุขภัณฑ์': 'SPARE PARTS', 'อะไหล่อ่างล้างหน้า': 'SPARE PARTS', 'อะไหล่อ่างอาบน้ำ': 'SPARE PARTS',
+};
+const groupDisplayName = { ACCESSORIES: 'Accessories', FAUCET: 'Faucet', SHOWER: 'Shower', 'SPARE PARTS': 'Spare Parts' };
+function groupFor(mch1) { return groupDisplayName[MCH1_TO_GROUP[mch1]] || 'Other'; }
+
+// Source: Data mapping.xlsx, sheet "แยกกลุ่มสีและประเภทสินค้า", columns A:Col Name / B:Color Group.
+const COLOR_TO_GROUP = {
+  'Black': 'BLACK', 'Black nickel': 'BLACK', 'Matt Black': 'BLACK', 'ดำ': 'BLACK', 'ดำ/เงิน': 'BLACK',
+  'ดำ/เทา': 'BLACK', 'ดำ/แดง': 'BLACK', 'ดำ/ทอง': 'BLACK', 'ดำ/น้ำเงิน': 'BLACK', 'รมดำ': 'BLACK', 'Gloss Black': 'BLACK',
+  'Bronze Brushed Aluminium': 'GOLD', 'Champagne': 'GOLD', 'Gold Brush': 'GOLD', 'Golden Yellow': 'GOLD', 'Sunrise Gold': 'GOLD',
+  'ทอง': 'GOLD', 'ทอง/เงิน': 'GOLD', 'ทอง/ขาว': 'GOLD', 'ทอง/ดำ': 'GOLD', 'ทอง/รมดำ': 'GOLD', 'ทองเหลือง': 'GOLD',
+  'ทองเหลือง/ด้าน': 'GOLD', 'ทองเหลืองชุบโครเมี่ยม': 'GOLD', 'ทองแดง': 'GOLD', 'ทองแดง/รมดำ': 'GOLD', 'ทองแดงรมดำ': 'GOLD',
+  'ทองรมดำ': 'GOLD', 'บรอนซ์': 'GOLD', 'บรอนซ์เงิน': 'GOLD', 'บรอนซ์ทอง': 'GOLD',
+  'Acrylic Primer': 'OTHER', 'Baby Blue': 'OTHER', 'Bamboo': 'OTHER', 'Blue': 'OTHER', 'Blue Sky': 'OTHER', 'Brown': 'OTHER',
+  'Deep Blue': 'OTHER', 'Flame': 'OTHER', 'Green': 'OTHER', 'Green Satin': 'OTHER', 'N/A': 'OTHER', 'Natural Oak': 'OTHER',
+  'Sunset': 'OTHER', 'เขียว': 'OTHER', 'เขียวอ่อน': 'OTHER', 'เหลือง': 'OTHER', 'แดง': 'OTHER', 'โอ๊คแดง': 'OTHER',
+  'โอ๊คอ่อน': 'OTHER', 'ใส': 'OTHER', 'ไม้': 'OTHER', 'ไม้สน': 'OTHER', 'กระจกเงา': 'OTHER', 'กระจกใส': 'OTHER',
+  'คละสี': 'OTHER', 'ซาติน': 'OTHER', 'น้ำเงิน': 'OTHER', 'น้ำเงิน/ขาว': 'OTHER', 'น้ำตาล': 'OTHER', 'น้ำตาล/เทา': 'OTHER',
+  'น้ำตาล/ดำ': 'OTHER', 'น้ำตาลเข้ม': 'OTHER', 'บีช': 'OTHER', 'พลาสติก': 'OTHER', 'ฟ้า': 'OTHER', 'ฟ้า/ขาว': 'OTHER',
+  'ฟ้า/น้ำเงิน': 'OTHER', 'ฟ้าอ่อน': 'OTHER', 'ม่วง': 'OTHER', 'ลายไม้': 'OTHER', 'ส้ม/เขียว': 'OTHER', 'สัก': 'OTHER',
+  'นำตาล': 'OTHER', 'Marble': 'OTHER', 'โอ๊ค': 'OTHER', 'Walnut': 'OTHER',
+  'Blush': 'ROSE GOLD', 'Brushed Rose Gold': 'ROSE GOLD', 'Rose Gold': 'ROSE GOLD', 'Rosy  Pink': 'ROSE GOLD',
+  'โรสโกล': 'ROSE GOLD', 'ชมพู': 'ROSE GOLD', 'ชมพูกุหลาบ': 'ROSE GOLD', 'ชมพูอมแดง': 'ROSE GOLD', 'น้ำตาล/ชมพู': 'ROSE GOLD',
+  'Aluminum': 'SILVER', 'Brushed Titanium': 'SILVER', 'Graphite': 'SILVER', 'Gray': 'SILVER', 'Grey': 'SILVER',
+  'Silver': 'SILVER', 'Silver Grey': 'SILVER', 'Silver Mist': 'SILVER', 'Silver White': 'SILVER', 'เงิน': 'SILVER',
+  'เงิน/ขาว': 'SILVER', 'เงิน/ชมพู': 'SILVER', 'เงิน/ดำ': 'SILVER', 'เงิน/ทอง': 'SILVER', 'เงินเงา': 'SILVER', 'เงินด้าน': 'SILVER',
+  'เทา': 'SILVER', 'เทา/เงิน': 'SILVER', 'เทา/ใส': 'SILVER', 'เทา/ขาว': 'SILVER', 'เทา/ดำ': 'SILVER', 'เทาเมทัลลิค': 'SILVER',
+  'เทาดำ': 'SILVER', 'เทาอ่อน': 'SILVER', 'เหล็ก': 'SILVER', 'แสตนเลส': 'SILVER', 'โครเมียม': 'SILVER', 'โครเมี่ยม': 'SILVER',
+  'โครเมี่ยม/เทา': 'SILVER', 'โครเมี่ยม/ขาว': 'SILVER', 'โครเมี่ยม/ดำ': 'SILVER', 'โครเมี่ยมเงา': 'SILVER', 'โครมเมี่ยม': 'SILVER',
+  'นิเกิล': 'SILVER', 'นิเกิล/โครเมี่ยม': 'SILVER', 'นิเกิล/ทอง': 'SILVER', 'นิเกิลเงา': 'SILVER', 'สแตนเลส': 'SILVER',
+  'สแตนเลสเงา': 'SILVER', 'สแตนเลสด้าน': 'SILVER', 'สแตลเลส': 'SILVER', 'อลูมิเนียม': 'SILVER',
+  'Cool White': 'WHITE', 'Gloss White': 'WHITE', 'Matt White': 'WHITE', 'White': 'WHITE', 'เบจ': 'WHITE', 'ขาว': 'WHITE',
+  'ขาว/เงิน': 'WHITE', 'ขาว/เทา': 'WHITE', 'ขาว/ครีม': 'WHITE', 'ขาว/ดำ': 'WHITE', 'ขาว/ทอง': 'WHITE', 'ขาว/น้ำเงิน': 'WHITE',
+  'ขาว/น้ำตาล': 'WHITE', 'ขาว/ฟ้า': 'WHITE', 'ขาว/ส้ม': 'WHITE', 'ขาวใส': 'WHITE', 'ขาวขุ่น': 'WHITE', 'ครีม': 'WHITE',
+  'ขาวลาย': 'WHITE',
+};
+const colorGroupDisplayName = { BLACK: 'Black', GOLD: 'Gold', OTHER: 'Other', 'ROSE GOLD': 'Rose Gold', SILVER: 'Silver', WHITE: 'White' };
+function colorGroupFor(raw) { return colorGroupDisplayName[COLOR_TO_GROUP[(raw || '').trim()]] || 'Other'; }
+const colorHex = { Silver: '#c8ccd1', Black: '#2b2b2b', Gold: '#cda349', 'Rose Gold': '#B76E79', White: '#ffffff', Other: '#4a3aa7' };
+
+const officeNameMap = {
+  'เกษตร-นวมินทร์': 'Kaset-Nawamin', 'พุทธมณฑล': 'Phutthamonthon', 'พัทยา': 'Pattaya', 'เชียงใหม่': 'Chiang Mai',
+};
+
+const monthAbbr = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function growth(a, b) { return b ? (a - b) / b : 0; }
+function addYear(obj, key, year, netSales, qty) {
+  if (!obj[key]) obj[key] = {};
+  if (!obj[key][year]) obj[key][year] = { netSales: 0, qty: 0 };
+  obj[key][year].netSales += netSales;
+  obj[key][year].qty += qty;
+}
+
+// Tableau captions measures as e.g. "SUM(Net Inc Tax)" — unwrap to the bare field name.
+function unwrapCaption(name) {
+  const m = /^[A-Za-z]+\((.+)\)$/.exec(name || '');
+  return m ? m[1] : name;
+}
+
+function toYearMonth(dateVal) {
+  const d = (dateVal instanceof Date) ? dateVal : new Date(dateVal);
+  return { y: d.getFullYear(), m: d.getMonth() + 1 };
+}
+
+async function fetchWorksheetRows(worksheet) {
+  const reader = await worksheet.getSummaryDataReaderAsync(undefined, { ignoreSelection: true });
+  const colIndex = {};
+  const rows = [];
+  try {
+    for (let page = 0; page < reader.pageCount; page++) {
+      const dataTablePage = await reader.getPageAsync(page);
+      if (page === 0) {
+        dataTablePage.columns.forEach((c) => {
+          colIndex[unwrapCaption(c.fieldName)] = c.index;
+        });
+      }
+      for (let i = 0; i < dataTablePage.data.length; i++) rows.push(dataTablePage.data[i]);
+    }
+  } finally {
+    await reader.releaseAsync();
+  }
+  return { rows, colIndex };
+}
+
+function val(row, colIndex, field) {
+  const idx = colIndex[field];
+  if (idx === undefined) return undefined;
+  const dv = row[idx];
+  return dv ? dv.value : undefined;
+}
+
+function computeDashboardData(rows, colIndex) {
+  const missing = Object.values(FIELD).filter((f) => colIndex[f] === undefined);
+  if (missing.length) {
+    throw new Error('Worksheet is missing expected field(s): ' + missing.join(', '));
+  }
+
+  let years = new Set();
+  const monthly = {}; // 'YYYY-MM' -> {netSales, qty, marginW}
+  const totals = {}; // year -> {netSales, qty, marginW}
+  const byChannel = {}, byOffice = {}, byMch1 = {}, byPrivateBrand = {}, byFocus = {}, byColorRaw = {}, byPriceClass = {}, byVendor = {}, byBrand = {};
+  const byArticle = {};
+  const skuSets = { byChannel: {}, byMch1: {}, byPriceClass: {}, byVendor: {} };
+
+  function ensureSkuSet(bucket, key, year) {
+    if (!skuSets[bucket][key]) skuSets[bucket][key] = {};
+    if (!skuSets[bucket][key][year]) skuSets[bucket][key][year] = new Set();
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const dateVal = val(row, colIndex, FIELD.DATE);
+    if (!dateVal) continue;
+    const { y, m } = toYearMonth(dateVal);
+    const year = String(y);
+    years.add(year);
+
+    const netSales = Number(val(row, colIndex, FIELD.NET_SALES)) || 0;
+    const qty = Number(val(row, colIndex, FIELD.QTY)) || 0;
+    const margin = Number(val(row, colIndex, FIELD.MARGIN)) || 0;
+
+    const monthKey = year + '-' + String(m).padStart(2, '0');
+    if (!monthly[monthKey]) monthly[monthKey] = { netSales: 0, qty: 0, marginW: 0 };
+    monthly[monthKey].netSales += netSales;
+    monthly[monthKey].qty += qty;
+    monthly[monthKey].marginW += margin * netSales;
+
+    if (!totals[year]) totals[year] = { netSales: 0, qty: 0, marginW: 0 };
+    totals[year].netSales += netSales;
+    totals[year].qty += qty;
+    totals[year].marginW += margin * netSales;
+
+    const articleId = val(row, colIndex, FIELD.ARTICLE_ID);
+    const channel = val(row, colIndex, FIELD.CHANNEL);
+    const office = val(row, colIndex, FIELD.OFFICE);
+    const mch1 = val(row, colIndex, FIELD.MCH1);
+    const privateBrand = val(row, colIndex, FIELD.PRIVATE_BRAND);
+    const vendor = val(row, colIndex, FIELD.VENDOR);
+    const colorRaw = val(row, colIndex, FIELD.COLOR);
+    const focusRaw = val(row, colIndex, FIELD.FOCUS);
+    const priceClass = val(row, colIndex, FIELD.PRICE_CLASS);
+    const brand = val(row, colIndex, FIELD.BRAND);
+    const articleName = val(row, colIndex, FIELD.ARTICLE_NAME);
+    const mc = val(row, colIndex, FIELD.MC);
+
+    if (channel) {
+      addYear(byChannel, channel, year, netSales, qty);
+      if (articleId) { ensureSkuSet('byChannel', channel, year); skuSets.byChannel[channel][year].add(articleId); }
+    }
+    if (office) addYear(byOffice, office, year, netSales, qty);
+    if (mch1) {
+      addYear(byMch1, mch1, year, netSales, qty);
+      if (articleId) { ensureSkuSet('byMch1', mch1, year); skuSets.byMch1[mch1][year].add(articleId); }
+    }
+    if (privateBrand) addYear(byPrivateBrand, privateBrand, year, netSales, qty);
+    if (focusRaw) {
+      const bucket = ['ALL', 'BKK', 'UPC'].includes(String(focusRaw).trim()) ? 'Focus' : 'Non-Focus';
+      addYear(byFocus, bucket, year, netSales, qty);
+    }
+    if (colorRaw) addYear(byColorRaw, colorRaw, year, netSales, qty);
+    if (priceClass) {
+      addYear(byPriceClass, priceClass, year, netSales, qty);
+      if (articleId) { ensureSkuSet('byPriceClass', priceClass, year); skuSets.byPriceClass[priceClass][year].add(articleId); }
+    }
+    if (vendor) {
+      addYear(byVendor, vendor, year, netSales, qty);
+      if (articleId) { ensureSkuSet('byVendor', vendor, year); skuSets.byVendor[vendor][year].add(articleId); }
+    }
+    if (brand) addYear(byBrand, brand, year, netSales, qty);
+
+    if (articleId) {
+      if (!byArticle[articleId]) byArticle[articleId] = { name: articleName, brand: brand, mch1: mch1, mc: mc };
+      if (!byArticle[articleId][year]) byArticle[articleId][year] = { netSales: 0, qty: 0 };
+      byArticle[articleId][year].netSales += netSales;
+      byArticle[articleId][year].qty += qty;
+    }
+  }
+
+  const yearList = Array.from(years).sort();
+  if (yearList.length === 0) throw new Error('No dated rows found in the worksheet.');
+  const currentYear = yearList[yearList.length - 1];
+  const priorYear = String(Number(currentYear) - 1);
+
+  // month numbers present for the current year — used as the YTD window for comparison
+  const monthsPresent = Array.from(new Set(
+    Object.keys(monthly).filter((k) => k.startsWith(currentYear + '-')).map((k) => Number(k.slice(5)))
+  )).sort((a, b) => a - b);
+
+  function monthlyOf(year, m) {
+    const key = year + '-' + String(m).padStart(2, '0');
+    return monthly[key] || { netSales: 0, qty: 0, marginW: 0 };
+  }
+
+  const cur = totals[currentYear] || { netSales: 0, qty: 0, marginW: 0 };
+  const pri = totals[priorYear] || { netSales: 0, qty: 0, marginW: 0 };
+
+  const sparkline = { netSales: [], qty: [], avgPrice: [], margin: [] };
+  monthsPresent.forEach((m) => { const v = monthlyOf(priorYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
+  monthsPresent.forEach((m) => { const v = monthlyOf(currentYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
+
+  const sparkLabels = [];
+  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + priorYear.slice(2)));
+  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + currentYear.slice(2)));
+
+  function skuCountFor(bucket, key, year) {
+    const s = skuSets[bucket][key];
+    return s && s[year] ? s[year].size : 0;
+  }
+
+  function mapWithGrowth(obj, nameMap) {
+    return Object.entries(obj).map(([k, v]) => {
+      const c = v[currentYear] || { netSales: 0, qty: 0 };
+      const p = v[priorYear] || { netSales: 0, qty: 0 };
+      return { k: (nameMap && nameMap[k]) || k, netSales: c.netSales, qty: c.qty, prior: p.netSales, growth: growth(c.netSales, p.netSales) };
+    }).sort((a, b) => b.netSales - a.netSales);
+  }
+
+  function topN(obj, n, skuBucketName) {
+    return Object.entries(obj).map(([k, v]) => {
+      const c = v[currentYear] || { netSales: 0, qty: 0 };
+      const p = v[priorYear] || { netSales: 0, qty: 0 };
+      return { k, netSales: c.netSales, qty: c.qty, prior: p.netSales, growth: growth(c.netSales, p.netSales), sku: skuBucketName ? skuCountFor(skuBucketName, k, currentYear) : undefined };
+    }).sort((a, b) => b.netSales - a.netSales).slice(0, n);
+  }
+
+  const channel = (() => {
+    const totalSku = Object.keys(byChannel).reduce((s, k) => s + skuCountFor('byChannel', k, currentYear), 0);
+    return mapWithGrowth(byChannel).map((it) => ({ ...it, skuCount: skuCountFor('byChannel', it.k, currentYear), skuShare: totalSku ? skuCountFor('byChannel', it.k, currentYear) / totalSku : 0 }));
+  })();
+
+  const privateBrandArr = mapWithGrowth(byPrivateBrand).sort((a, b) => (a.k === 'Private Brand' ? -1 : b.k === 'Private Brand' ? 1 : 0));
+  const focusArr = mapWithGrowth(byFocus);
+
+  const office = mapWithGrowth(byOffice, officeNameMap);
+
+  const productGroup = (() => {
+    const grouped = {};
+    for (const [mch1, v] of Object.entries(byMch1)) {
+      const g = groupFor(mch1);
+      if (!grouped[g]) grouped[g] = { netSales2026: 0, qty2026: 0, netSales2025: 0, skuCount2026: 0 };
+      const c = v[currentYear] || { netSales: 0, qty: 0 };
+      const p = v[priorYear] || { netSales: 0, qty: 0 };
+      grouped[g].netSales2026 += c.netSales;
+      grouped[g].qty2026 += c.qty;
+      grouped[g].netSales2025 += p.netSales;
+      grouped[g].skuCount2026 += skuCountFor('byMch1', mch1, currentYear);
+    }
+    const totalSku = Object.values(grouped).reduce((s, v) => s + v.skuCount2026, 0);
+    return Object.entries(grouped).map(([k, v]) => ({ k, netSales: v.netSales2026, qty: v.qty2026, prior: v.netSales2025, growth: growth(v.netSales2026, v.netSales2025), skuCount: v.skuCount2026, skuShare: totalSku ? v.skuCount2026 / totalSku : 0 })).sort((a, b) => b.netSales - a.netSales);
+  })();
+
+  const priceSegment = (() => {
+    const order = ['High', 'Medium', 'Mass'];
+    const totalSales = Object.entries(byPriceClass).reduce((s, [, v]) => s + ((v[currentYear] || {}).netSales || 0), 0);
+    const totalSku = Object.keys(byPriceClass).reduce((s, k) => s + skuCountFor('byPriceClass', k, currentYear), 0);
+    return order.filter((k) => byPriceClass[k]).map((k) => {
+      const v = byPriceClass[k];
+      const c = v[currentYear] || { netSales: 0, qty: 0 };
+      const p = v[priorYear] || { netSales: 0, qty: 0 };
+      const skuCount = skuCountFor('byPriceClass', k, currentYear);
+      return { k, salesShare: totalSales ? c.netSales / totalSales : 0, skuShare: totalSku ? skuCount / totalSku : 0, skuCount, netSales: c.netSales, prior: p.netSales, growth: growth(c.netSales, p.netSales) };
+    });
+  })();
+
+  const colorGroup = (() => {
+    const grouped = {};
+    for (const [raw, v] of Object.entries(byColorRaw)) {
+      const g = colorGroupFor(raw);
+      if (!grouped[g]) grouped[g] = { netSales2026: 0, qty2026: 0, netSales2025: 0 };
+      const c = v[currentYear] || { netSales: 0, qty: 0 };
+      const p = v[priorYear] || { netSales: 0, qty: 0 };
+      grouped[g].netSales2026 += c.netSales;
+      grouped[g].qty2026 += c.qty;
+      grouped[g].netSales2025 += p.netSales;
+    }
+    return Object.entries(grouped).map(([k, v]) => ({ k, netSales: v.netSales2026, qty: v.qty2026, prior: v.netSales2025, growth: growth(v.netSales2026, v.netSales2025) })).sort((a, b) => b.netSales - a.netSales);
+  })();
+
+  const topVendor = topN(byVendor, 10, 'byVendor');
+  const topBrand = topN(byBrand, 10);
+
+  const heroProducts = Object.entries(byArticle)
+    .map(([id, v]) => ({
+      id, name: v.name, image: null, brand: v.brand, mch2: groupFor(v.mch1), mc: v.mc,
+      netSales2025: (v[priorYear] || { netSales: 0 }).netSales,
+      netSales2026: (v[currentYear] || { netSales: 0 }).netSales,
+      qty2025: (v[priorYear] || { qty: 0 }).qty,
+      qty2026: (v[currentYear] || { qty: 0 }).qty,
+    }))
+    .map((it) => ({ ...it, growthNetSales: growth(it.netSales2026, it.netSales2025), growthQty: growth(it.qty2026, it.qty2025) }))
+    .sort((a, b) => b.netSales2026 - a.netSales2026)
+    .slice(0, 10);
+
+  const monthLabels = monthsPresent.map((m) => monthAbbr[m]);
+  const trendSeries = (year) => monthsPresent.map((m) => monthlyOf(year, m).netSales);
+
+  const maxDateKey = Object.keys(monthly).filter((k) => k.startsWith(currentYear + '-')).sort().slice(-1)[0];
+  const maxMonth = maxDateKey ? Number(maxDateKey.slice(5)) : monthsPresent[monthsPresent.length - 1];
+  const monthRangeLabel = monthLabels.length > 1 ? (monthLabels[0] + '–' + monthLabels[monthLabels.length - 1]) : monthLabels[0];
+
+  return {
+    meta: {
+      title: 'Port Fitting Overview',
+      subtitle: 'Sales Performance | ' + monthRangeLabel + ' ' + currentYear + ' vs ' + monthRangeLabel + ' ' + priorYear,
+      asOf: '(latest) ' + monthAbbr[maxMonth] + ' ' + currentYear,
+    },
+    sparkLabels,
+    kpi: {
+      netSales: { v2026: cur.netSales, v2025: pri.netSales, sparkline: sparkline.netSales },
+      qty: { v2026: cur.qty, v2025: pri.qty, sparkline: sparkline.qty },
+      avgPrice: { v2026: cur.qty ? cur.netSales / cur.qty : 0, v2025: pri.qty ? pri.netSales / pri.qty : 0, sparkline: sparkline.avgPrice },
+      margin: { v2026: cur.netSales ? cur.marginW / cur.netSales : 0, v2025: pri.netSales ? pri.marginW / pri.netSales : 0, sparkline: sparkline.margin },
+      sku: { v2026: countArticlesInYear(byArticle, currentYear), v2025: countArticlesInYear(byArticle, priorYear) },
+      vendor: { v2026: Object.keys(byVendor).filter((k) => byVendor[k][currentYear]).length, v2025: Object.keys(byVendor).filter((k) => byVendor[k][priorYear]).length },
+      brand: { v2026: Object.keys(byBrand).filter((k) => byBrand[k][currentYear]).length, v2025: Object.keys(byBrand).filter((k) => byBrand[k][priorYear]).length },
+    },
+    trend: { months: monthLabels, netSales2025: trendSeries(priorYear), netSales2026: trendSeries(currentYear) },
+    channel,
+    privateBrand: privateBrandArr,
+    focus: focusArr,
+    productGroup,
+    priceSegment,
+    colorGroup,
+    colorHex,
+    office,
+    topVendor,
+    topBrand,
+    heroProducts,
+  };
+}
+
+function countArticlesInYear(byArticle, year) {
+  let count = 0;
+  for (const id in byArticle) if (byArticle[id][year]) count++;
+  return count;
+}
+
+/* ---------------- render orchestration (clears each card before re-drawing) ---------------- */
+function clearAndRun(elementId, fn) {
+  const el = document.getElementById(elementId);
+  el.innerHTML = '';
+  fn(el);
+}
+
+function renderDashboard(DATA) {
+  document.getElementById('title').textContent = DATA.meta.title.toUpperCase();
+  document.getElementById('subtitle').textContent = DATA.meta.subtitle;
+  document.getElementById('asof').textContent = 'Data as of : ' + DATA.meta.asOf;
+
+  clearAndRun('kpi-netSales', (el) => renderKpiTile(el, {
+    label: 'Net Sales (Net Inc Tax)', v2026: DATA.kpi.netSales.v2026, v2025: DATA.kpi.netSales.v2025,
+    formatValue: (v) => fmtMoney(v), sparkline: DATA.kpi.netSales.sparkline,
+  }));
+  clearAndRun('kpi-qty', (el) => renderKpiTile(el, {
+    label: 'Sale Qty (Pcs.)', v2026: DATA.kpi.qty.v2026, v2025: DATA.kpi.qty.v2025,
+    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.qty.sparkline,
+  }));
+  clearAndRun('kpi-avgPrice', (el) => renderKpiTile(el, {
+    label: 'Avg. Selling Price', v2026: DATA.kpi.avgPrice.v2026, v2025: DATA.kpi.avgPrice.v2025,
+    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.avgPrice.sparkline,
+  }));
+  clearAndRun('kpi-margin', (el) => renderKpiTile(el, {
+    label: 'Margin % (no tax)', v2026: DATA.kpi.margin.v2026, v2025: DATA.kpi.margin.v2025,
+    formatValue: (v) => (v * 100).toFixed(1) + '%', sparkline: DATA.kpi.margin.sparkline,
+  }));
+
+  clearAndRun('chip-sku', (el) => renderChip(el, 'SKU Count', DATA.kpi.sku.v2026, DATA.kpi.sku.v2025));
+  clearAndRun('chip-vendor', (el) => renderChip(el, 'Vendor Count', DATA.kpi.vendor.v2026, DATA.kpi.vendor.v2025));
+  clearAndRun('chip-brand', (el) => renderChip(el, 'Brand Count', DATA.kpi.brand.v2026, DATA.kpi.brand.v2025));
+
+  clearAndRun('mix-focus', (el) => renderShareBar(el, 'Sales by Focus', 'Share of Net Sales', DATA.focus, ['#4E79A7', '#AFD6ED']));
+  clearAndRun('mix-privateBrand', (el) => renderShareBar(el, 'Sales by Private Brand', 'Share of Net Sales', DATA.privateBrand, ['#8FDDD7', '#F7DDC7']));
+
+  clearAndRun('chart-office', (el) => renderBarList(el, 'Sales by Sales Office', 'Net Sales, THB', DATA.office, {
+    showShare: true, colorFor: () => '#87CEFA', labelWidth: 165,
+  }));
+
+  clearAndRun('chart-trend', (el) => renderTrendChart(el, 'Net Sales Trend', 'Unit: THB · %Growth labeled at each current-year point', DATA.trend.months, DATA.trend.netSales2025, DATA.trend.netSales2026));
+
+  clearAndRun('chart-channel', (el) => {
+    const channelTotal = DATA.channel.reduce((s, it) => s + it.netSales, 0);
+    renderDonut(el, 'Sales by Channel', 'Share of Net Sales', DATA.channel, ['#00AFB9', '#F07167'], {
+      detailHeaders: ['Channel', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
+      detailRows: DATA.channel.map((it) => [it.k, fmtMoney(it.netSales), ((it.netSales / (channelTotal || 1)) * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount || 0), ((it.skuShare || 0) * 100).toFixed(0) + '%']),
+    });
+  });
+
+  clearAndRun('chart-productGroup', (el) => renderDonut(el, 'Sales by Product Group', 'Share of Net Sales', DATA.productGroup, ['#2A9D8F', '#E9C46A', '#F4A261', '#E76F51'], {
+    detailHeaders: ['Product Group', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
+    detailRows: DATA.productGroup.map((it) => [it.k, fmtMoney(it.netSales), ((it.netSales / (DATA.productGroup.reduce((s, x) => s + x.netSales, 0) || 1)) * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount || 0), ((it.skuShare || 0) * 100).toFixed(0) + '%']),
+  }));
+
+  clearAndRun('chart-priceSegment', (el) => renderDonut(el, 'Sales by Price Segment', 'Share of Net Sales', DATA.priceSegment, ['#9D7FB5', '#E8698F', '#7B93E0'], {
+    detailHeaders: ['Segment', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
+    detailRows: DATA.priceSegment.map((it) => [it.k, fmtMoney(it.netSales), (it.salesShare * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount), (it.skuShare * 100).toFixed(0) + '%']),
+  }));
+
+  clearAndRun('chart-colorGroup', (el) => renderBarList(el, 'Sales by Color Group', 'Net Sales, THB', DATA.colorGroup, {
+    colorFor: (it) => DATA.colorHex[it.k] || 'var(--series-accent)', fillHeight: true,
+  }));
+  clearAndRun('chart-vendor', (el) => renderBarList(el, 'Top Vendor by Net Sales', 'Net Sales, THB · Top 10', DATA.topVendor, { stacked: true, compact: true, colorFor: () => '#7978B1' }));
+  clearAndRun('chart-brand', (el) => renderBarList(el, 'Top Brand by Net Sales', 'Net Sales, THB · Top 10', DATA.topBrand, { stacked: true, compact: true, colorFor: () => '#7978B1' }));
+
+  clearAndRun('table-hero', (el) => renderHeroTable(el, 'Top 10 Hero Products by Net Sales', 'Ranked by Net Sales', DATA.heroProducts));
+}
+
+/* ---------------- Tableau initialization ---------------- */
+function showStatus(message, isError) {
+  let banner = document.getElementById('status-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'status-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100;padding:10px 20px;font-size:13px;text-align:center;';
+    document.body.prepend(banner);
+  }
+  banner.textContent = message;
+  banner.style.background = isError ? '#d03b3b' : '#2a78d6';
+  banner.style.color = '#fff';
+  banner.style.display = message ? 'block' : 'none';
+}
+
+let activeWorksheet = null;
+
+async function loadAndRender() {
+  try {
+    showStatus('Loading data from Tableau…', false);
+    const { rows, colIndex } = await fetchWorksheetRows(activeWorksheet);
+    const DATA = computeDashboardData(rows, colIndex);
+    renderDashboard(DATA);
+    showStatus('', false);
+  } catch (err) {
+    console.error(err);
+    showStatus('Error loading data: ' + err.message, true);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  tableau.extensions.initializeAsync().then(function () {
+    const dashboard = tableau.extensions.dashboardContent.dashboard;
+    if (!dashboard.worksheets.length) {
+      showStatus('Error: no worksheets found on this dashboard.', true);
+      return;
+    }
+    activeWorksheet = dashboard.worksheets[0];
+    activeWorksheet.addEventListener(tableau.TableauEventType.FilterChanged, loadAndRender);
+    activeWorksheet.addEventListener(tableau.TableauEventType.SummaryDataChanged, loadAndRender);
+    loadAndRender();
+  }, function (err) {
+    showStatus('Error initializing extension: ' + err.toString(), true);
+  });
+});
+</script>
+</body>
+</html>
