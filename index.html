@@ -489,12 +489,12 @@ function renderKpiTile(container, opts) {
   delta.textContent = arrow(growth) + ' ' + fmtPct(growth) + ' YoY';
   left.appendChild(delta);
   const prior = document.createElement('div'); prior.className = 'kpi-prior';
-  prior.textContent = 'vs Jan–Mar 2025: ' + opts.formatValue(opts.v2025);
+  prior.textContent = 'vs ' + (opts.priorLabel || 'prior period') + ': ' + opts.formatValue(opts.v2025);
   left.appendChild(prior);
   body.appendChild(left);
   if (opts.sparkline) {
     const spark = document.createElement('div'); spark.className = 'kpi-spark';
-    spark.appendChild(renderSparkline(opts.sparkline, 3, DATA.sparkLabels));
+    spark.appendChild(renderSparkline(opts.sparkline, opts.sparklineSplit === undefined ? 3 : opts.sparklineSplit, opts.sparkLabels));
     body.appendChild(spark);
   }
   container.appendChild(body);
@@ -1462,6 +1462,7 @@ function computeDashboardData(rows, colIndex) {
       title: 'Port Fitting Overview',
       subtitle: 'Sales Performance | ' + monthRangeLabel + ' ' + currentYear + ' vs ' + monthRangeLabel + ' ' + priorYear,
       asOf: '(latest) ' + monthAbbr[maxMonth] + ' ' + currentYear,
+      priorRangeLabel: monthRangeLabel + ' ' + priorYear,
     },
     sparkLabels,
     kpi: {
@@ -1506,21 +1507,23 @@ function renderDashboard(DATA) {
   document.getElementById('subtitle').textContent = DATA.meta.subtitle;
   document.getElementById('asof').textContent = 'Data as of : ' + DATA.meta.asOf;
 
+  const sparklineSplit = DATA.trend.months.length;
+  const priorLabel = DATA.meta.priorRangeLabel;
   clearAndRun('kpi-netSales', (el) => renderKpiTile(el, {
     label: 'Net Sales (Net Inc Tax)', v2026: DATA.kpi.netSales.v2026, v2025: DATA.kpi.netSales.v2025,
-    formatValue: (v) => fmtMoney(v), sparkline: DATA.kpi.netSales.sparkline,
+    formatValue: (v) => fmtMoney(v), sparkline: DATA.kpi.netSales.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
   }));
   clearAndRun('kpi-qty', (el) => renderKpiTile(el, {
     label: 'Sale Qty (Pcs.)', v2026: DATA.kpi.qty.v2026, v2025: DATA.kpi.qty.v2025,
-    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.qty.sparkline,
+    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.qty.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
   }));
   clearAndRun('kpi-avgPrice', (el) => renderKpiTile(el, {
     label: 'Avg. Selling Price', v2026: DATA.kpi.avgPrice.v2026, v2025: DATA.kpi.avgPrice.v2025,
-    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.avgPrice.sparkline,
+    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.avgPrice.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
   }));
   clearAndRun('kpi-margin', (el) => renderKpiTile(el, {
     label: 'Margin % (no tax)', v2026: DATA.kpi.margin.v2026, v2025: DATA.kpi.margin.v2025,
-    formatValue: (v) => (v * 100).toFixed(1) + '%', sparkline: DATA.kpi.margin.sparkline,
+    formatValue: (v) => (v * 100).toFixed(1) + '%', sparkline: DATA.kpi.margin.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
   }));
 
   clearAndRun('chip-sku', (el) => renderChip(el, 'SKU Count', DATA.kpi.sku.v2026, DATA.kpi.sku.v2025));
