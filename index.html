@@ -1257,11 +1257,24 @@ function val(row, colIndex, field) {
   return dv ? dv.value : undefined;
 }
 
+// Shared by both worksheet computations — takes currentYear/priorYear explicitly
+// since Trend and Detail each derive their own bucket objects independently.
+function mapWithGrowth(obj, currentYear, priorYear, nameMap) {
+  return Object.entries(obj).map(([k, v]) => {
+    const c = v[currentYear] || { netSales: 0, qty: 0 };
+    const p = v[priorYear] || { netSales: 0, qty: 0 };
+    return { k: (nameMap && nameMap[k]) || k, netSales: c.netSales, qty: c.qty, prior: p.netSales, growth: growth(c.netSales, p.netSales) };
+  }).sort((a, b) => b.netSales - a.netSales);
+}
+
 /*
  * Trend worksheet: Month-grain, no Article Id (kept small to avoid Tableau API
- * row-count limits). Feeds the KPI tiles + monthly trend chart only.
+ * row-count limits). Feeds the KPI tiles + monthly trend chart, plus every category
+ * breakdown that doesn't need a distinct-SKU count (Office, Private Brand, Focus,
+ * Color Group) — those don't need Article Id, so keeping them off the Detail
+ * worksheet avoids multiplying its row count.
  */
-const TREND_FIELD_KEYS = ['DATE', 'NET_SALES', 'QTY', 'MARGIN'];
+const TREND_FIELD_KEYS = ['DATE', 'NET_SALES', 'QTY', 'MARGIN', 'OFFICE', 'PRIVATE_BRAND', 'FOCUS'];
 
 function computeTrendPart(rows, colIndex) {
   const missing = TREND_FIELD_KEYS.map((k) => FIELD[k]).filter((f) => colIndex[f] === undefined);
@@ -1270,6 +1283,7 @@ function computeTrendPart(rows, colIndex) {
   let years = new Set();
   const monthly = {}; // 'YYYY-MM' -> {netSales, qty, marginW}
   const totals = {}; // year -> {netSales, qty, marginW}
+  const byOffice = {}, byPrivateBrand = {}, byFocus = {};
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -1293,6 +1307,17 @@ function computeTrendPart(rows, colIndex) {
     totals[year].netSales += netSales;
     totals[year].qty += qty;
     totals[year].marginW += margin * netSales;
+
+    const office = val(row, colIndex, FIELD.OFFICE);
+    const privateBrand = val(row, colIndex, FIELD.PRIVATE_BRAND);
+    const focusRaw = val(row, colIndex, FIELD.FOCUS);
+
+    if (office) addYear(byOffice, office, year, netSales, qty);
+    if (privateBrand) addYear(byPrivateBrand, privateBrand, year, netSales, qty);
+    if (focusRaw) {
+      const bucket = ['ALL', 'BKK', 'UPC'].includes(String(focusRaw).trim()) ? 'Focus' : 'Non-Focus';
+      addYear(byFocus, bucket, year, netSales, qty);
+    }
   }
 
   const yearList = Array.from(years).sort();
@@ -1328,6 +1353,10 @@ function computeTrendPart(rows, colIndex) {
   const maxMonth = maxDateKey ? Number(maxDateKey.slice(5)) : monthsPresent[monthsPresent.length - 1];
   const monthRangeLabel = monthLabels.length > 1 ? (monthLabels[0] + '–' + monthLabels[monthLabels.length - 1]) : monthLabels[0];
 
+  const office = mapWithGrowth(byOffice, currentYear, priorYear, officeNameMap);
+  const privateBrandArr = mapWithGrowth(byPrivateBrand, currentYear, priorYear).sort((a, b) => (a.k === 'Private Brand' ? -1 : b.k === 'Private Brand' ? 1 : 0));
+  const focusArr = mapWithGrowth(byFocus, currentYear, priorYear);
+
   return {
     currentYear, priorYear, sparkLabels,
     meta: {
@@ -1343,19 +1372,24 @@ function computeTrendPart(rows, colIndex) {
       margin: { v2026: cur.netSales ? cur.marginW / cur.netSales : 0, v2025: pri.netSales ? pri.marginW / pri.netSales : 0, sparkline: sparkline.margin },
     },
     trend: { months: monthLabels, netSales2025: trendSeries(priorYear), netSales2026: trendSeries(currentYear) },
+    office, privateBrand: privateBrandArr, focus: focusArr,
   };
 }
 
 /*
- * Detail worksheet: Year-grain only (no Month), but includes Article Id and every
- * dimension. Feeds every category breakdown + Hero Products. Year-only grain keeps
- * row count down since Article Id x Year is far smaller than Article Id x Month/day.
+ * Detail worksheet: Year-grain only (no Month), with Article Id. Feeds only the
+ * breakdowns that need a distinct-SKU count (Channel, Product Group, Price Segment,
+ * Vendor) plus Hero Products/Top Brand, and Color Group (kept here rather than Trend
+ * since `Col Name` is already on this worksheet) — everything else lives on the
+ * Trend worksheet to avoid multiplying Article Id against unrelated dimensions.
  */
+const DETAIL_FIELD_KEYS = ['DATE', 'ARTICLE_ID', 'ARTICLE_NAME', 'BRAND', 'MCH1', 'MC', 'VENDOR', 'CHANNEL', 'PRICE_CLASS', 'COLOR', 'NET_SALES', 'QTY'];
+
 function computeDetailPart(rows, colIndex, currentYear, priorYear) {
-  const missing = Object.keys(FIELD).map((k) => FIELD[k]).filter((f) => colIndex[f] === undefined);
+  const missing = DETAIL_FIELD_KEYS.map((k) => FIELD[k]).filter((f) => colIndex[f] === undefined);
   if (missing.length) throw new Error('Detail worksheet is missing expected field(s): ' + missing.join(', '));
 
-  const byChannel = {}, byOffice = {}, byMch1 = {}, byPrivateBrand = {}, byFocus = {}, byColorRaw = {}, byPriceClass = {}, byVendor = {}, byBrand = {};
+  const byChannel = {}, byMch1 = {}, byPriceClass = {}, byVendor = {}, byBrand = {}, byColorRaw = {};
   const byArticle = {};
   const skuSets = { byChannel: {}, byMch1: {}, byPriceClass: {}, byVendor: {} };
 
@@ -1377,32 +1411,22 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
 
     const articleId = val(row, colIndex, FIELD.ARTICLE_ID);
     const channel = val(row, colIndex, FIELD.CHANNEL);
-    const office = val(row, colIndex, FIELD.OFFICE);
     const mch1 = val(row, colIndex, FIELD.MCH1);
-    const privateBrand = val(row, colIndex, FIELD.PRIVATE_BRAND);
     const vendor = val(row, colIndex, FIELD.VENDOR);
-    const colorRaw = val(row, colIndex, FIELD.COLOR);
-    const focusRaw = val(row, colIndex, FIELD.FOCUS);
     const priceClass = val(row, colIndex, FIELD.PRICE_CLASS);
     const brand = val(row, colIndex, FIELD.BRAND);
     const articleName = val(row, colIndex, FIELD.ARTICLE_NAME);
     const mc = val(row, colIndex, FIELD.MC);
+    const colorRaw = val(row, colIndex, FIELD.COLOR);
 
     if (channel) {
       addYear(byChannel, channel, year, netSales, qty);
       if (articleId) { ensureSkuSet('byChannel', channel, year); skuSets.byChannel[channel][year].add(articleId); }
     }
-    if (office) addYear(byOffice, office, year, netSales, qty);
     if (mch1) {
       addYear(byMch1, mch1, year, netSales, qty);
       if (articleId) { ensureSkuSet('byMch1', mch1, year); skuSets.byMch1[mch1][year].add(articleId); }
     }
-    if (privateBrand) addYear(byPrivateBrand, privateBrand, year, netSales, qty);
-    if (focusRaw) {
-      const bucket = ['ALL', 'BKK', 'UPC'].includes(String(focusRaw).trim()) ? 'Focus' : 'Non-Focus';
-      addYear(byFocus, bucket, year, netSales, qty);
-    }
-    if (colorRaw) addYear(byColorRaw, colorRaw, year, netSales, qty);
     if (priceClass) {
       addYear(byPriceClass, priceClass, year, netSales, qty);
       if (articleId) { ensureSkuSet('byPriceClass', priceClass, year); skuSets.byPriceClass[priceClass][year].add(articleId); }
@@ -1412,6 +1436,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
       if (articleId) { ensureSkuSet('byVendor', vendor, year); skuSets.byVendor[vendor][year].add(articleId); }
     }
     if (brand) addYear(byBrand, brand, year, netSales, qty);
+    if (colorRaw) addYear(byColorRaw, colorRaw, year, netSales, qty);
 
     if (articleId) {
       if (!byArticle[articleId]) byArticle[articleId] = { name: articleName, brand: brand, mch1: mch1, mc: mc };
@@ -1426,14 +1451,6 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
     return s && s[year] ? s[year].size : 0;
   }
 
-  function mapWithGrowth(obj, nameMap) {
-    return Object.entries(obj).map(([k, v]) => {
-      const c = v[currentYear] || { netSales: 0, qty: 0 };
-      const p = v[priorYear] || { netSales: 0, qty: 0 };
-      return { k: (nameMap && nameMap[k]) || k, netSales: c.netSales, qty: c.qty, prior: p.netSales, growth: growth(c.netSales, p.netSales) };
-    }).sort((a, b) => b.netSales - a.netSales);
-  }
-
   function topN(obj, n, skuBucketName) {
     return Object.entries(obj).map(([k, v]) => {
       const c = v[currentYear] || { netSales: 0, qty: 0 };
@@ -1444,13 +1461,8 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
 
   const channel = (() => {
     const totalSku = Object.keys(byChannel).reduce((s, k) => s + skuCountFor('byChannel', k, currentYear), 0);
-    return mapWithGrowth(byChannel).map((it) => ({ ...it, skuCount: skuCountFor('byChannel', it.k, currentYear), skuShare: totalSku ? skuCountFor('byChannel', it.k, currentYear) / totalSku : 0 }));
+    return mapWithGrowth(byChannel, currentYear, priorYear).map((it) => ({ ...it, skuCount: skuCountFor('byChannel', it.k, currentYear), skuShare: totalSku ? skuCountFor('byChannel', it.k, currentYear) / totalSku : 0 }));
   })();
-
-  const privateBrandArr = mapWithGrowth(byPrivateBrand).sort((a, b) => (a.k === 'Private Brand' ? -1 : b.k === 'Private Brand' ? 1 : 0));
-  const focusArr = mapWithGrowth(byFocus);
-
-  const office = mapWithGrowth(byOffice, officeNameMap);
 
   const productGroup = (() => {
     const grouped = {};
@@ -1511,7 +1523,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
     .slice(0, 10);
 
   return {
-    channel, privateBrand: privateBrandArr, focus: focusArr, office, productGroup, priceSegment, colorGroup, colorHex, topVendor, topBrand, heroProducts,
+    channel, productGroup, priceSegment, colorGroup, colorHex, topVendor, topBrand, heroProducts,
     kpiExtra: {
       sku: { v2026: countArticlesInYear(byArticle, currentYear), v2025: countArticlesInYear(byArticle, priorYear) },
       vendor: { v2026: Object.keys(byVendor).filter((k) => byVendor[k][currentYear]).length, v2025: Object.keys(byVendor).filter((k) => byVendor[k][priorYear]).length },
@@ -1543,13 +1555,13 @@ function computeDashboardData(trendPart, detailPart) {
     },
     trend: trendPart.trend,
     channel: detailPart.channel,
-    privateBrand: detailPart.privateBrand,
-    focus: detailPart.focus,
+    privateBrand: trendPart.privateBrand,
+    focus: trendPart.focus,
     productGroup: detailPart.productGroup,
     priceSegment: detailPart.priceSegment,
     colorGroup: detailPart.colorGroup,
     colorHex: detailPart.colorHex,
-    office: detailPart.office,
+    office: trendPart.office,
     topVendor: detailPart.topVendor,
     topBrand: detailPart.topBrand,
     heroProducts: detailPart.heroProducts,

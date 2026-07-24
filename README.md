@@ -19,31 +19,39 @@ Extensions API row limits and fails with a generic `internal-error`. To keep bot
 worksheets small, the dashboard is split into **2 worksheets**, auto-detected by
 whichever one has `Article Id` on Detail:
 
-**1. Trend worksheet** — Month-grain, **no `Article Id`** (keeps row count low).
-Feeds the 4 KPI tiles + the monthly Net Sales trend chart only.
+**1. Trend worksheet** — Month-grain, **no `Article Id`**. Feeds the 4 KPI tiles, the
+monthly Net Sales trend chart, and Office / Private Brand / Focus (none of these need
+a distinct-SKU count, so keeping them off the Detail worksheet avoids multiplying them
+against thousands of SKUs).
 
 ```
 Time Date               Net Inc Tax           Sale Qty
-%Margin (no tax)
+%Margin (no tax)         Sls Ofc Desc          Flag_PrivateBrand
+flag_focus_new (group)
 ```
 Rows shelf: `MONTH(Time Date)` (or `Time Date` at day grain — either works, since this
-worksheet only aggregates by month). No `Article Id`, `Article Name Th`, or `Mc Desc`
-on Detail — that's what keeps this worksheet small.
+worksheet only aggregates by month). No `Article Id`, `Article Name Th`, `Mch1 Desc`,
+`Mc Desc`, `Vendor Name`, `Sls Grp Desc`, `Class price`, or `Col Name` on Detail —
+that's what keeps this worksheet small.
 
 **2. Detail worksheet** — **Year-grain only** (no Month/Day), **with `Article Id`**.
-Feeds every category breakdown (Channel, Office, Product Group, Price Segment, Color
-Group, Vendor, Brand) plus Hero Products.
+Feeds the breakdowns that need a distinct-SKU count — **Channel, Product Group, Price
+Segment, Vendor** — plus Color Group, Top Brand, and Hero Products. Color Group lives
+here (not on Trend) because `Col Name` doesn't need a SKU count either, but is simplest
+to keep alongside the other Article-level attributes already on this worksheet.
 
 ```
-Time Date               Sls Grp Desc          Sls Ofc Desc
-Article Id              Article Name Th       Brand
-Mch1 Desc                Mc Desc               Flag_PrivateBrand
-Vendor Name              Col Name              flag_focus_new (group)
-Class price              Net Inc Tax           Sale Qty
+Time Date               Article Id            Article Name Th
+Brand                    Mch1 Desc             Mc Desc
+Vendor Name              Sls Grp Desc          Class price
+Col Name                 Net Inc Tax           Sale Qty
 ```
 Rows shelf: `YEAR(Time Date)` — do **not** add Month/Day here, since crossing
 `Article Id` with a finer date grain multiplies row count back up (this was the
-original cause of the `internal-error`).
+original cause of the `internal-error`). Also keep `Sls Ofc Desc`, `Flag_PrivateBrand`,
+and `flag_focus_new (group)` **off** this worksheet — they belong on Trend only;
+adding them here re-multiplies `Article Id` against extra dimensions for no benefit,
+since none of them need a SKU count.
 
 Field names must match the source Excel headers **exactly** on both worksheets. If
 any expected field is missing or misnamed on either one, the extension shows an error
@@ -87,10 +95,12 @@ double-check after Pages finishes its first deploy (can take a minute or two).
 
 1. Connect the workbook to the real data source (replacing `Data from ds.xlsx`).
 2. Build the **Trend worksheet**: `MONTH(Time Date)` (or `Time Date`) plus
-   `Net Inc Tax`, `Sale Qty`, `%Margin (no tax)` on the **Detail** shelf. No
-   `Article Id`.
-3. Build the **Detail worksheet**: `YEAR(Time Date)` plus every other field listed
-   above on the **Detail** shelf, including `Article Id`.
+   `Net Inc Tax`, `Sale Qty`, `%Margin (no tax)`, `Sls Ofc Desc`, `Flag_PrivateBrand`,
+   `flag_focus_new (group)` on the **Detail** shelf. No `Article Id`, no `Col Name`.
+3. Build the **Detail worksheet**: `YEAR(Time Date)` plus `Article Id`,
+   `Article Name Th`, `Brand`, `Mch1 Desc`, `Mc Desc`, `Vendor Name`, `Sls Grp Desc`,
+   `Class price`, `Col Name`, `Net Inc Tax`, `Sale Qty` on the **Detail** shelf. No
+   `Sls Ofc Desc`, `Flag_PrivateBrand`, or `flag_focus_new (group)` here.
 4. Add **both** worksheets to the same dashboard, then **Objects → Extension** →
    browse to `PortFittingOverview.trex` → **Add**.
 5. The dashboard should populate within a few seconds. Any native Tableau filter you
