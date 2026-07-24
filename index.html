@@ -1221,6 +1221,15 @@ function toYearMonth(dateVal) {
   return { y: d.getFullYear(), m: d.getMonth() + 1 };
 }
 
+// Detail worksheet is Year-grain only — dateVal may be a Date, a bare year number, or a numeric string.
+function extractYear(dateVal) {
+  if (dateVal instanceof Date) return dateVal.getFullYear();
+  const n = Number(dateVal);
+  if (!Number.isNaN(n) && n > 1900 && n < 3000) return n;
+  const d = new Date(dateVal);
+  return Number.isNaN(d.getTime()) ? null : d.getFullYear();
+}
+
 async function fetchWorksheetRows(worksheet) {
   const reader = await worksheet.getSummaryDataReaderAsync(undefined, { ignoreSelection: true });
   const colIndex = {};
@@ -1248,23 +1257,19 @@ function val(row, colIndex, field) {
   return dv ? dv.value : undefined;
 }
 
-function computeDashboardData(rows, colIndex) {
-  const missing = Object.values(FIELD).filter((f) => colIndex[f] === undefined);
-  if (missing.length) {
-    throw new Error('Worksheet is missing expected field(s): ' + missing.join(', '));
-  }
+/*
+ * Trend worksheet: Month-grain, no Article Id (kept small to avoid Tableau API
+ * row-count limits). Feeds the KPI tiles + monthly trend chart only.
+ */
+const TREND_FIELD_KEYS = ['DATE', 'NET_SALES', 'QTY', 'MARGIN'];
+
+function computeTrendPart(rows, colIndex) {
+  const missing = TREND_FIELD_KEYS.map((k) => FIELD[k]).filter((f) => colIndex[f] === undefined);
+  if (missing.length) throw new Error('Trend worksheet is missing expected field(s): ' + missing.join(', '));
 
   let years = new Set();
   const monthly = {}; // 'YYYY-MM' -> {netSales, qty, marginW}
   const totals = {}; // year -> {netSales, qty, marginW}
-  const byChannel = {}, byOffice = {}, byMch1 = {}, byPrivateBrand = {}, byFocus = {}, byColorRaw = {}, byPriceClass = {}, byVendor = {}, byBrand = {};
-  const byArticle = {};
-  const skuSets = { byChannel: {}, byMch1: {}, byPriceClass: {}, byVendor: {} };
-
-  function ensureSkuSet(bucket, key, year) {
-    if (!skuSets[bucket][key]) skuSets[bucket][key] = {};
-    if (!skuSets[bucket][key][year]) skuSets[bucket][key][year] = new Set();
-  }
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -1288,6 +1293,87 @@ function computeDashboardData(rows, colIndex) {
     totals[year].netSales += netSales;
     totals[year].qty += qty;
     totals[year].marginW += margin * netSales;
+  }
+
+  const yearList = Array.from(years).sort();
+  if (yearList.length === 0) throw new Error('No dated rows found in the Trend worksheet.');
+  const currentYear = yearList[yearList.length - 1];
+  const priorYear = String(Number(currentYear) - 1);
+
+  // month numbers present for the current year — used as the YTD window for comparison
+  const monthsPresent = Array.from(new Set(
+    Object.keys(monthly).filter((k) => k.startsWith(currentYear + '-')).map((k) => Number(k.slice(5)))
+  )).sort((a, b) => a - b);
+
+  function monthlyOf(year, m) {
+    const key = year + '-' + String(m).padStart(2, '0');
+    return monthly[key] || { netSales: 0, qty: 0, marginW: 0 };
+  }
+
+  const cur = totals[currentYear] || { netSales: 0, qty: 0, marginW: 0 };
+  const pri = totals[priorYear] || { netSales: 0, qty: 0, marginW: 0 };
+
+  const sparkline = { netSales: [], qty: [], avgPrice: [], margin: [] };
+  monthsPresent.forEach((m) => { const v = monthlyOf(priorYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
+  monthsPresent.forEach((m) => { const v = monthlyOf(currentYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
+
+  const sparkLabels = [];
+  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + priorYear.slice(2)));
+  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + currentYear.slice(2)));
+
+  const monthLabels = monthsPresent.map((m) => monthAbbr[m]);
+  const trendSeries = (year) => monthsPresent.map((m) => monthlyOf(year, m).netSales);
+
+  const maxDateKey = Object.keys(monthly).filter((k) => k.startsWith(currentYear + '-')).sort().slice(-1)[0];
+  const maxMonth = maxDateKey ? Number(maxDateKey.slice(5)) : monthsPresent[monthsPresent.length - 1];
+  const monthRangeLabel = monthLabels.length > 1 ? (monthLabels[0] + '–' + monthLabels[monthLabels.length - 1]) : monthLabels[0];
+
+  return {
+    currentYear, priorYear, sparkLabels,
+    meta: {
+      title: 'Port Fitting Overview',
+      subtitle: 'Sales Performance | ' + monthRangeLabel + ' ' + currentYear + ' vs ' + monthRangeLabel + ' ' + priorYear,
+      asOf: '(latest) ' + monthAbbr[maxMonth] + ' ' + currentYear,
+      priorRangeLabel: monthRangeLabel + ' ' + priorYear,
+    },
+    kpiCore: {
+      netSales: { v2026: cur.netSales, v2025: pri.netSales, sparkline: sparkline.netSales },
+      qty: { v2026: cur.qty, v2025: pri.qty, sparkline: sparkline.qty },
+      avgPrice: { v2026: cur.qty ? cur.netSales / cur.qty : 0, v2025: pri.qty ? pri.netSales / pri.qty : 0, sparkline: sparkline.avgPrice },
+      margin: { v2026: cur.netSales ? cur.marginW / cur.netSales : 0, v2025: pri.netSales ? pri.marginW / pri.netSales : 0, sparkline: sparkline.margin },
+    },
+    trend: { months: monthLabels, netSales2025: trendSeries(priorYear), netSales2026: trendSeries(currentYear) },
+  };
+}
+
+/*
+ * Detail worksheet: Year-grain only (no Month), but includes Article Id and every
+ * dimension. Feeds every category breakdown + Hero Products. Year-only grain keeps
+ * row count down since Article Id x Year is far smaller than Article Id x Month/day.
+ */
+function computeDetailPart(rows, colIndex, currentYear, priorYear) {
+  const missing = Object.keys(FIELD).map((k) => FIELD[k]).filter((f) => colIndex[f] === undefined);
+  if (missing.length) throw new Error('Detail worksheet is missing expected field(s): ' + missing.join(', '));
+
+  const byChannel = {}, byOffice = {}, byMch1 = {}, byPrivateBrand = {}, byFocus = {}, byColorRaw = {}, byPriceClass = {}, byVendor = {}, byBrand = {};
+  const byArticle = {};
+  const skuSets = { byChannel: {}, byMch1: {}, byPriceClass: {}, byVendor: {} };
+
+  function ensureSkuSet(bucket, key, year) {
+    if (!skuSets[bucket][key]) skuSets[bucket][key] = {};
+    if (!skuSets[bucket][key][year]) skuSets[bucket][key][year] = new Set();
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const dateVal = val(row, colIndex, FIELD.DATE);
+    if (!dateVal) continue;
+    const y = extractYear(dateVal);
+    if (y === null) continue;
+    const year = String(y);
+
+    const netSales = Number(val(row, colIndex, FIELD.NET_SALES)) || 0;
+    const qty = Number(val(row, colIndex, FIELD.QTY)) || 0;
 
     const articleId = val(row, colIndex, FIELD.ARTICLE_ID);
     const channel = val(row, colIndex, FIELD.CHANNEL);
@@ -1334,32 +1420,6 @@ function computeDashboardData(rows, colIndex) {
       byArticle[articleId][year].qty += qty;
     }
   }
-
-  const yearList = Array.from(years).sort();
-  if (yearList.length === 0) throw new Error('No dated rows found in the worksheet.');
-  const currentYear = yearList[yearList.length - 1];
-  const priorYear = String(Number(currentYear) - 1);
-
-  // month numbers present for the current year — used as the YTD window for comparison
-  const monthsPresent = Array.from(new Set(
-    Object.keys(monthly).filter((k) => k.startsWith(currentYear + '-')).map((k) => Number(k.slice(5)))
-  )).sort((a, b) => a - b);
-
-  function monthlyOf(year, m) {
-    const key = year + '-' + String(m).padStart(2, '0');
-    return monthly[key] || { netSales: 0, qty: 0, marginW: 0 };
-  }
-
-  const cur = totals[currentYear] || { netSales: 0, qty: 0, marginW: 0 };
-  const pri = totals[priorYear] || { netSales: 0, qty: 0, marginW: 0 };
-
-  const sparkline = { netSales: [], qty: [], avgPrice: [], margin: [] };
-  monthsPresent.forEach((m) => { const v = monthlyOf(priorYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
-  monthsPresent.forEach((m) => { const v = monthlyOf(currentYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
-
-  const sparkLabels = [];
-  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + priorYear.slice(2)));
-  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + currentYear.slice(2)));
 
   function skuCountFor(bucket, key, year) {
     const s = skuSets[bucket][key];
@@ -1450,42 +1510,13 @@ function computeDashboardData(rows, colIndex) {
     .sort((a, b) => b.netSales2026 - a.netSales2026)
     .slice(0, 10);
 
-  const monthLabels = monthsPresent.map((m) => monthAbbr[m]);
-  const trendSeries = (year) => monthsPresent.map((m) => monthlyOf(year, m).netSales);
-
-  const maxDateKey = Object.keys(monthly).filter((k) => k.startsWith(currentYear + '-')).sort().slice(-1)[0];
-  const maxMonth = maxDateKey ? Number(maxDateKey.slice(5)) : monthsPresent[monthsPresent.length - 1];
-  const monthRangeLabel = monthLabels.length > 1 ? (monthLabels[0] + '–' + monthLabels[monthLabels.length - 1]) : monthLabels[0];
-
   return {
-    meta: {
-      title: 'Port Fitting Overview',
-      subtitle: 'Sales Performance | ' + monthRangeLabel + ' ' + currentYear + ' vs ' + monthRangeLabel + ' ' + priorYear,
-      asOf: '(latest) ' + monthAbbr[maxMonth] + ' ' + currentYear,
-      priorRangeLabel: monthRangeLabel + ' ' + priorYear,
-    },
-    sparkLabels,
-    kpi: {
-      netSales: { v2026: cur.netSales, v2025: pri.netSales, sparkline: sparkline.netSales },
-      qty: { v2026: cur.qty, v2025: pri.qty, sparkline: sparkline.qty },
-      avgPrice: { v2026: cur.qty ? cur.netSales / cur.qty : 0, v2025: pri.qty ? pri.netSales / pri.qty : 0, sparkline: sparkline.avgPrice },
-      margin: { v2026: cur.netSales ? cur.marginW / cur.netSales : 0, v2025: pri.netSales ? pri.marginW / pri.netSales : 0, sparkline: sparkline.margin },
+    channel, privateBrand: privateBrandArr, focus: focusArr, office, productGroup, priceSegment, colorGroup, colorHex, topVendor, topBrand, heroProducts,
+    kpiExtra: {
       sku: { v2026: countArticlesInYear(byArticle, currentYear), v2025: countArticlesInYear(byArticle, priorYear) },
       vendor: { v2026: Object.keys(byVendor).filter((k) => byVendor[k][currentYear]).length, v2025: Object.keys(byVendor).filter((k) => byVendor[k][priorYear]).length },
       brand: { v2026: Object.keys(byBrand).filter((k) => byBrand[k][currentYear]).length, v2025: Object.keys(byBrand).filter((k) => byBrand[k][priorYear]).length },
     },
-    trend: { months: monthLabels, netSales2025: trendSeries(priorYear), netSales2026: trendSeries(currentYear) },
-    channel,
-    privateBrand: privateBrandArr,
-    focus: focusArr,
-    productGroup,
-    priceSegment,
-    colorGroup,
-    colorHex,
-    office,
-    topVendor,
-    topBrand,
-    heroProducts,
   };
 }
 
@@ -1493,6 +1524,36 @@ function countArticlesInYear(byArticle, year) {
   let count = 0;
   for (const id in byArticle) if (byArticle[id][year]) count++;
   return count;
+}
+
+// Merges the Trend-worksheet result (KPI/monthly trend) with the Detail-worksheet
+// result (everything at Article Id grain) into the single DATA shape renderDashboard expects.
+function computeDashboardData(trendPart, detailPart) {
+  return {
+    meta: trendPart.meta,
+    sparkLabels: trendPart.sparkLabels,
+    kpi: {
+      netSales: trendPart.kpiCore.netSales,
+      qty: trendPart.kpiCore.qty,
+      avgPrice: trendPart.kpiCore.avgPrice,
+      margin: trendPart.kpiCore.margin,
+      sku: detailPart.kpiExtra.sku,
+      vendor: detailPart.kpiExtra.vendor,
+      brand: detailPart.kpiExtra.brand,
+    },
+    trend: trendPart.trend,
+    channel: detailPart.channel,
+    privateBrand: detailPart.privateBrand,
+    focus: detailPart.focus,
+    productGroup: detailPart.productGroup,
+    priceSegment: detailPart.priceSegment,
+    colorGroup: detailPart.colorGroup,
+    colorHex: detailPart.colorHex,
+    office: detailPart.office,
+    topVendor: detailPart.topVendor,
+    topBrand: detailPart.topBrand,
+    heroProducts: detailPart.heroProducts,
+  };
 }
 
 /* ---------------- render orchestration (clears each card before re-drawing) ---------------- */
@@ -1581,13 +1642,30 @@ function showStatus(message, isError) {
   banner.style.display = message ? 'block' : 'none';
 }
 
-let activeWorksheet = null;
+// Auto-classifies the dashboard's 2 worksheets: whichever one has Article Id on
+// Detail is the "Detail" worksheet; the other is "Trend".
+async function classifyWorksheets(worksheets) {
+  const results = await Promise.all(worksheets.map(async (ws) => {
+    const fetched = await fetchWorksheetRows(ws);
+    return { ws, ...fetched };
+  }));
+  let trend = null, detail = null;
+  results.forEach((r) => {
+    if (r.colIndex[FIELD.ARTICLE_ID] !== undefined && !detail) detail = r;
+    else if (!trend) trend = r;
+  });
+  return { trend, detail };
+}
 
 async function loadAndRender() {
   try {
     showStatus('Loading data from Tableau…', false);
-    const { rows, colIndex } = await fetchWorksheetRows(activeWorksheet);
-    const DATA = computeDashboardData(rows, colIndex);
+    const { trend, detail } = await classifyWorksheets(tableau.extensions.dashboardContent.dashboard.worksheets);
+    if (!trend) throw new Error('Could not find the Trend worksheet (no ' + FIELD.ARTICLE_ID + ' field, needs ' + FIELD.DATE + ' / ' + FIELD.NET_SALES + ' / ' + FIELD.QTY + ' / ' + FIELD.MARGIN + ').');
+    if (!detail) throw new Error('Could not find the Detail worksheet (needs the ' + FIELD.ARTICLE_ID + ' field).');
+    const trendPart = computeTrendPart(trend.rows, trend.colIndex);
+    const detailPart = computeDetailPart(detail.rows, detail.colIndex, trendPart.currentYear, trendPart.priorYear);
+    const DATA = computeDashboardData(trendPart, detailPart);
     renderDashboard(DATA);
     showStatus('', false);
   } catch (err) {
@@ -1599,13 +1677,14 @@ async function loadAndRender() {
 document.addEventListener('DOMContentLoaded', function () {
   tableau.extensions.initializeAsync().then(function () {
     const dashboard = tableau.extensions.dashboardContent.dashboard;
-    if (!dashboard.worksheets.length) {
-      showStatus('Error: no worksheets found on this dashboard.', true);
+    if (dashboard.worksheets.length < 2) {
+      showStatus('Error: expected 2 worksheets (Trend + Detail) on this dashboard, found ' + dashboard.worksheets.length + '.', true);
       return;
     }
-    activeWorksheet = dashboard.worksheets[0];
-    activeWorksheet.addEventListener(tableau.TableauEventType.FilterChanged, loadAndRender);
-    activeWorksheet.addEventListener(tableau.TableauEventType.SummaryDataChanged, loadAndRender);
+    dashboard.worksheets.forEach((ws) => {
+      ws.addEventListener(tableau.TableauEventType.FilterChanged, loadAndRender);
+      ws.addEventListener(tableau.TableauEventType.SummaryDataChanged, loadAndRender);
+    });
     loadAndRender();
   }, function (err) {
     showStatus('Error initializing extension: ' + err.toString(), true);

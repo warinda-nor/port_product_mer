@@ -12,23 +12,45 @@ recomputes every chart client-side (grouping, YoY comparison, top-N rankings, et
 | `PortFittingOverview.trex` | Tableau manifest — tells Tableau where to load the extension from |
 | `tableau.extensions.1.latest.js` | Official Tableau Extensions API library (local copy) |
 
-## What the worksheet must look like
+## What the worksheets must look like
 
-The extension expects **one worksheet**, at transaction-detail grain — every row below
-placed on the **Detail** shelf so each mark equals one original sales line item (same
-grain as `Data from ds.xlsx`). Field names must match the source Excel headers **exactly**:
+A single transaction-detail worksheet (Article Id x day, ~700k rows) hits Tableau's
+Extensions API row limits and fails with a generic `internal-error`. To keep both
+worksheets small, the dashboard is split into **2 worksheets**, auto-detected by
+whichever one has `Article Id` on Detail:
+
+**1. Trend worksheet** — Month-grain, **no `Article Id`** (keeps row count low).
+Feeds the 4 KPI tiles + the monthly Net Sales trend chart only.
 
 ```
-Day of Time Date       Sls Grp Desc          Sls Ofc Desc
+Time Date               Net Inc Tax           Sale Qty
+%Margin (no tax)
+```
+Rows shelf: `MONTH(Time Date)` (or `Time Date` at day grain — either works, since this
+worksheet only aggregates by month). No `Article Id`, `Article Name Th`, or `Mc Desc`
+on Detail — that's what keeps this worksheet small.
+
+**2. Detail worksheet** — **Year-grain only** (no Month/Day), **with `Article Id`**.
+Feeds every category breakdown (Channel, Office, Product Group, Price Segment, Color
+Group, Vendor, Brand) plus Hero Products.
+
+```
+Time Date               Sls Grp Desc          Sls Ofc Desc
 Article Id              Article Name Th       Brand
 Mch1 Desc                Mc Desc               Flag_PrivateBrand
 Vendor Name              Col Name              flag_focus_new (group)
 Class price              Net Inc Tax           Sale Qty
-%Margin (no tax)
 ```
+Rows shelf: `YEAR(Time Date)` — do **not** add Month/Day here, since crossing
+`Article Id` with a finer date grain multiplies row count back up (this was the
+original cause of the `internal-error`).
 
-If any of these are missing or misnamed, the extension shows an error banner naming
-the missing field(s) instead of a blank/broken dashboard.
+Field names must match the source Excel headers **exactly** on both worksheets. If
+any expected field is missing or misnamed on either one, the extension shows an error
+banner naming the missing field(s) and which worksheet, instead of a blank/broken
+dashboard. Both worksheets must be placed on the same dashboard alongside the
+Extension object — the extension auto-detects which is which by checking for
+`Article Id`, so it doesn't matter what you name the worksheets themselves.
 
 Product Group (Faucet/Shower/Spare Parts/Accessories) and Color Group (Black/Gold/
 Other/Rose Gold/Silver/White) are derived in-browser from `Mch1 Desc` / `Col Name`
@@ -61,18 +83,21 @@ https://warinda-nor.github.io/port_product_mer/index.html
 This must match the `<url>` inside `PortFittingOverview.trex` — it already does, but
 double-check after Pages finishes its first deploy (can take a minute or two).
 
-## 3. Build the worksheet + add the extension in Tableau Desktop
+## 3. Build the worksheets + add the extension in Tableau Desktop
 
 1. Connect the workbook to the real data source (replacing `Data from ds.xlsx`).
-2. Build one worksheet with all the fields listed above on the **Detail** shelf (no
-   aggregation, no filters that change the grain — actual dashboard filters are fine,
-   see below).
-3. Add that worksheet to a dashboard, then **Objects → Extension** → browse to
-   `PortFittingOverview.trex` → **Add**.
-4. The dashboard should populate within a few seconds. Any native Tableau filter you
+2. Build the **Trend worksheet**: `MONTH(Time Date)` (or `Time Date`) plus
+   `Net Inc Tax`, `Sale Qty`, `%Margin (no tax)` on the **Detail** shelf. No
+   `Article Id`.
+3. Build the **Detail worksheet**: `YEAR(Time Date)` plus every other field listed
+   above on the **Detail** shelf, including `Article Id`.
+4. Add **both** worksheets to the same dashboard, then **Objects → Extension** →
+   browse to `PortFittingOverview.trex` → **Add**.
+5. The dashboard should populate within a few seconds. Any native Tableau filter you
    place on the dashboard (Year, Zone, Office, Channel, Vendor, Brand, …) will
    automatically re-trigger the extension and refresh every chart — that's what the
-   `FilterChanged`/`SummaryDataChanged` listeners in `index.html` are for.
+   `FilterChanged`/`SummaryDataChanged` listeners in `index.html` are for (registered
+   on both worksheets).
 
 ## Local testing (optional, before deploying to GitHub Pages)
 
