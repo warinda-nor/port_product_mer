@@ -1645,10 +1645,13 @@ function showStatus(message, isError) {
 // Auto-classifies the dashboard's 2 worksheets: whichever one has Article Id on
 // Detail is the "Detail" worksheet; the other is "Trend".
 async function classifyWorksheets(worksheets) {
-  const results = await Promise.all(worksheets.map(async (ws) => {
+  // Fetched one at a time — concurrent getSummaryDataReaderAsync calls across
+  // worksheets can trip Tableau's native bridge into a generic ExecuteCommand error.
+  const results = [];
+  for (const ws of worksheets) {
     const fetched = await fetchWorksheetRows(ws);
-    return { ws, ...fetched };
-  }));
+    results.push({ ws, ...fetched });
+  }
   let trend = null, detail = null;
   results.forEach((r) => {
     if (r.colIndex[FIELD.ARTICLE_ID] !== undefined && !detail) detail = r;
