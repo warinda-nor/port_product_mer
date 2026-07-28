@@ -1213,16 +1213,30 @@ function unwrapCaption(name) {
   return m ? m[1] : name;
 }
 
-function toYearMonth(dateVal) {
-  const d = (dateVal instanceof Date) ? dateVal : new Date(dateVal);
+// Tableau's discrete custom date parts (e.g. a "Month, Year" grouping shown as
+// "January 2025") can return a small internal integer via DataValue.value instead
+// of a real timestamp — new Date(2) resolves to Jan 1970, not the intended month.
+// formattedValue carries the human-readable string instead, which Date() parses
+// correctly, so it's tried first whenever dateVal isn't already a genuine Date.
+function toYearMonth(dateVal, formattedValue) {
+  if (dateVal instanceof Date) return { y: dateVal.getFullYear(), m: dateVal.getMonth() + 1 };
+  if (formattedValue) {
+    const fd = new Date(formattedValue);
+    if (!Number.isNaN(fd.getTime())) return { y: fd.getFullYear(), m: fd.getMonth() + 1 };
+  }
+  const d = new Date(dateVal);
   return { y: d.getFullYear(), m: d.getMonth() + 1 };
 }
 
 // Detail worksheet is Year-grain only — dateVal may be a Date, a bare year number, or a numeric string.
-function extractYear(dateVal) {
+function extractYear(dateVal, formattedValue) {
   if (dateVal instanceof Date) return dateVal.getFullYear();
   const n = Number(dateVal);
   if (!Number.isNaN(n) && n > 1900 && n < 3000) return n;
+  if (formattedValue) {
+    const fd = new Date(formattedValue);
+    if (!Number.isNaN(fd.getTime())) return fd.getFullYear();
+  }
   const d = new Date(dateVal);
   return Number.isNaN(d.getTime()) ? null : d.getFullYear();
 }
@@ -1252,6 +1266,13 @@ function val(row, colIndex, field) {
   if (idx === undefined) return undefined;
   const dv = row[idx];
   return dv ? dv.value : undefined;
+}
+
+function formattedVal(row, colIndex, field) {
+  const idx = colIndex[field];
+  if (idx === undefined) return undefined;
+  const dv = row[idx];
+  return dv ? dv.formattedValue : undefined;
 }
 
 // Shared by both worksheet computations — takes currentYear/priorYear explicitly
@@ -1286,7 +1307,7 @@ function computeTrendPart(rows, colIndex) {
     const row = rows[i];
     const dateVal = val(row, colIndex, FIELD.DATE);
     if (!dateVal) continue;
-    const { y, m } = toYearMonth(dateVal);
+    const { y, m } = toYearMonth(dateVal, formattedVal(row, colIndex, FIELD.DATE));
     const year = String(y);
     years.add(year);
 
@@ -1399,7 +1420,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
     const row = rows[i];
     const dateVal = val(row, colIndex, FIELD.DATE);
     if (!dateVal) continue;
-    const y = extractYear(dateVal);
+    const y = extractYear(dateVal, formattedVal(row, colIndex, FIELD.DATE));
     if (y === null) continue;
     const year = String(y);
 
