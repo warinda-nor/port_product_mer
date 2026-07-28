@@ -106,20 +106,6 @@
   .brand h1 { font-size: 22px; margin: 0; letter-spacing: 0.02em; font-weight: 700; }
   .brand p { margin: 3px 0 0; font-size: 14px; color: rgba(255,255,255,0.72); }
 
-  .filters { display: flex; gap: 10px; flex-wrap: wrap; }
-  .filter-chip {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.16);
-    border-radius: 8px;
-    padding: 6px 13px;
-    font-size: 13.5px;
-    color: rgba(255,255,255,0.92);
-    display: flex; flex-direction: column; gap: 2px;
-    min-width: 96px;
-  }
-  .filter-chip span.lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.55); }
-  .filter-chip span.val { font-weight: 600; display:flex; align-items:center; gap:6px; }
-  .filter-chip span.val::after { content: "▾"; font-size: 9px; opacity: 0.7; }
   .asof { font-size: 13.5px; color: rgba(255,255,255,0.65); text-align: right; white-space: nowrap; }
 
   /* ---------- Grid ---------- */
@@ -282,14 +268,6 @@
         <h1 id="title">PORT FITTING OVERVIEW</h1>
         <p id="subtitle">Sales Performance</p>
       </div>
-    </div>
-    <div class="filters">
-      <div class="filter-chip"><span class="lbl">Year</span><span class="val">2026 (YTD Mar)</span></div>
-      <div class="filter-chip"><span class="lbl">Zone</span><span class="val">All</span></div>
-      <div class="filter-chip"><span class="lbl">Sales Office</span><span class="val">All</span></div>
-      <div class="filter-chip"><span class="lbl">Channel</span><span class="val">All</span></div>
-      <div class="filter-chip"><span class="lbl">Vendor</span><span class="val">All</span></div>
-      <div class="filter-chip"><span class="lbl">Brand</span><span class="val">All</span></div>
     </div>
     <div class="asof" id="asof">Data as of : —</div>
   </header>
@@ -486,7 +464,7 @@ function renderKpiTile(container, opts) {
   const val = document.createElement('div'); val.className = 'kpi-value'; val.textContent = opts.formatValue(opts.v2026);
   left.appendChild(val);
   const delta = document.createElement('div'); delta.className = 'kpi-delta ' + growthClass(growth);
-  delta.textContent = arrow(growth) + ' ' + fmtPct(growth) + ' YoY';
+  delta.textContent = arrow(growth) + ' ' + fmtPct(growth);
   left.appendChild(delta);
   const prior = document.createElement('div'); prior.className = 'kpi-prior';
   prior.textContent = 'vs ' + (opts.priorLabel || 'prior period') + ': ' + opts.formatValue(opts.v2025);
@@ -508,7 +486,7 @@ function renderChip(container, label, v2026, v2025) {
   const val = document.createElement('div'); val.className = 'kpi-value'; val.textContent = fmtInt(v2026);
   container.appendChild(val);
   const delta = document.createElement('div'); delta.className = 'kpi-delta ' + growthClass(growth);
-  delta.textContent = arrow(growth) + ' ' + fmtPct(growth) + ' YoY';
+  delta.textContent = arrow(growth) + ' ' + fmtPct(growth);
   container.appendChild(delta);
   const prior = document.createElement('div'); prior.className = 'kpi-prior';
   prior.textContent = 'vs 2025: ' + fmtInt(v2025);
@@ -653,9 +631,10 @@ function renderBarList(container, title, sub, items, opts) {
       if (opts.labelWidth) row.style.gridTemplateColumns = opts.labelWidth + 'px 1fr 82px 72px';
       if (opts.compact) row.style.padding = '3px 0';
       const lbl = document.createElement('div'); lbl.className = 'lbl'; lbl.textContent = labelFor(it); lbl.title = it.k;
+      if (opts.fontSize) lbl.style.fontSize = opts.fontSize + 'px';
       row.appendChild(lbl);
       const track = document.createElement('div'); track.className = 'bar-track';
-      if (opts.compact) track.style.height = '12px';
+      track.style.height = (opts.trackHeight || (opts.compact ? 12 : 19)) + 'px';
       const fill = document.createElement('div'); fill.className = 'bar-fill'; fill.style.background = color;
       fill.style.width = ((it.netSales / maxVal) * 100) + '%';
       fill.addEventListener('pointermove', (e) => showTooltip(e.clientX, e.clientY, tooltipFn));
@@ -663,8 +642,10 @@ function renderBarList(container, title, sub, items, opts) {
       track.appendChild(fill);
       row.appendChild(track);
       const val = document.createElement('div'); val.className = 'bar-val'; val.textContent = fmtMoney(it.netSales);
+      if (opts.fontSize) val.style.fontSize = opts.fontSize + 'px';
       row.appendChild(val);
       const delta = document.createElement('div'); delta.className = 'bar-delta ' + growthClass(g); delta.textContent = arrow(g) + ' ' + fmtPct(g);
+      if (opts.fontSize) delta.style.fontSize = (opts.fontSize - 1) + 'px';
       row.appendChild(delta);
       target.appendChild(row);
     }
@@ -744,14 +725,34 @@ function renderDonut(container, title, sub, items, colors, opts) {
     angle += sweep;
   });
 
-  // direct labels with leader lines (name - share%), matching the requested style
-  segMeta.forEach(({ it, share, mid }, i) => {
-    const outer = polarToCartesian(cx, cy, rOuter, mid);
-    const elbow = polarToCartesian(cx, cy, rOuter + 6, mid);
-    const rightSide = elbow[0] >= cx;
-    const labelX = elbow[0] + (rightSide ? 6 : -6);
+  // direct labels with leader lines (name - share%), matching the requested style.
+  // Slices below MIN_LABEL_SHARE are still drawn in the ring but skip the label —
+  // labeling every sliver crowds/overlaps text around near-zero segments. Labels
+  // that land close together (e.g. two adjacent slices both near the top of the
+  // ring) are then pushed apart vertically per side so their 2-line text blocks
+  // don't overlap.
+  const MIN_LABEL_SHARE = 0.01;
+  const MIN_LABEL_GAP = 36;
+  const labelDescs = segMeta
+    .filter(({ share }) => share >= MIN_LABEL_SHARE)
+    .map(({ it, share, mid }) => {
+      const outer = polarToCartesian(cx, cy, rOuter, mid);
+      const elbow = polarToCartesian(cx, cy, rOuter + 12, mid);
+      const rightSide = elbow[0] >= cx;
+      const labelX = elbow[0] + (rightSide ? 6 : -6);
+      return { it, share, outer, elbowX: elbow[0], y: elbow[1], rightSide, labelX };
+    });
+
+  [true, false].forEach((side) => {
+    const group = labelDescs.filter((d) => d.rightSide === side).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < group.length; i++) {
+      if (group[i].y - group[i - 1].y < MIN_LABEL_GAP) group[i].y = group[i - 1].y + MIN_LABEL_GAP;
+    }
+  });
+
+  labelDescs.forEach(({ it, share, outer, elbowX, y, rightSide, labelX }) => {
     const path = document.createElementNS(svgNS, 'path');
-    path.setAttribute('d', 'M' + outer[0].toFixed(1) + ',' + outer[1].toFixed(1) + ' L' + elbow[0].toFixed(1) + ',' + elbow[1].toFixed(1) + ' L' + labelX.toFixed(1) + ',' + elbow[1].toFixed(1));
+    path.setAttribute('d', 'M' + outer[0].toFixed(1) + ',' + outer[1].toFixed(1) + ' L' + elbowX.toFixed(1) + ',' + y.toFixed(1) + ' L' + labelX.toFixed(1) + ',' + y.toFixed(1));
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', 'var(--text-muted)');
     path.setAttribute('stroke-width', '1');
@@ -760,7 +761,7 @@ function renderDonut(container, title, sub, items, colors, opts) {
     const labelAnchorX = labelX + (rightSide ? 3 : -3);
     const label = document.createElementNS(svgNS, 'text');
     label.setAttribute('x', labelAnchorX);
-    label.setAttribute('y', elbow[1] - 5);
+    label.setAttribute('y', y - 5);
     label.setAttribute('dy', '0.32em');
     label.setAttribute('text-anchor', rightSide ? 'start' : 'end');
     label.setAttribute('font-size', '10');
@@ -772,7 +773,7 @@ function renderDonut(container, title, sub, items, colors, opts) {
     const g = it.growth;
     const subLabel = document.createElementNS(svgNS, 'text');
     subLabel.setAttribute('x', labelAnchorX);
-    subLabel.setAttribute('y', elbow[1] + 8);
+    subLabel.setAttribute('y', y + 8);
     subLabel.setAttribute('dy', '0.32em');
     subLabel.setAttribute('text-anchor', rightSide ? 'start' : 'end');
     subLabel.setAttribute('font-size', '9');
@@ -1196,10 +1197,6 @@ const colorGroupDisplayName = { BLACK: 'Black', GOLD: 'Gold', OTHER: 'Other', 'R
 function colorGroupFor(raw) { return colorGroupDisplayName[COLOR_TO_GROUP[(raw || '').trim()]] || 'Other'; }
 const colorHex = { Silver: '#c8ccd1', Black: '#2b2b2b', Gold: '#cda349', 'Rose Gold': '#B76E79', White: '#ffffff', Other: '#4a3aa7' };
 
-const officeNameMap = {
-  'เกษตร-นวมินทร์': 'Kaset-Nawamin', 'พุทธมณฑล': 'Phutthamonthon', 'พัทยา': 'Pattaya', 'เชียงใหม่': 'Chiang Mai',
-};
-
 const monthAbbr = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function growth(a, b) { return b ? (a - b) / b : 0; }
@@ -1353,7 +1350,7 @@ function computeTrendPart(rows, colIndex) {
   const maxMonth = maxDateKey ? Number(maxDateKey.slice(5)) : monthsPresent[monthsPresent.length - 1];
   const monthRangeLabel = monthLabels.length > 1 ? (monthLabels[0] + '–' + monthLabels[monthLabels.length - 1]) : monthLabels[0];
 
-  const office = mapWithGrowth(byOffice, currentYear, priorYear, officeNameMap);
+  const office = mapWithGrowth(byOffice, currentYear, priorYear);
   const privateBrandArr = mapWithGrowth(byPrivateBrand, currentYear, priorYear).sort((a, b) => (a.k === 'Private Brand' ? -1 : b.k === 'Private Brand' ? 1 : 0));
   const focusArr = mapWithGrowth(byFocus, currentYear, priorYear);
 
@@ -1607,27 +1604,36 @@ function renderDashboard(DATA) {
   clearAndRun('mix-privateBrand', (el) => renderShareBar(el, 'Sales by Private Brand', 'Share of Net Sales', DATA.privateBrand, ['#8FDDD7', '#F7DDC7']));
 
   clearAndRun('chart-office', (el) => renderBarList(el, 'Sales by Sales Office', 'Net Sales, THB', DATA.office, {
-    showShare: true, colorFor: () => '#87CEFA', labelWidth: 165,
+    showShare: true, colorFor: () => '#87CEFA', labelWidth: 150,
+    compact: true, trackHeight: 10, fontSize: 12, fillHeight: true,
   }));
 
   clearAndRun('chart-trend', (el) => renderTrendChart(el, 'Net Sales Trend', 'Unit: THB · %Growth labeled at each current-year point', DATA.trend.months, DATA.trend.netSales2025, DATA.trend.netSales2026));
+
+  // Rows for near-zero-share slices are dropped from the detail table too — same
+  // 1% cutoff used to hide their donut labels, so the table doesn't list clutter
+  // the chart itself doesn't call out.
+  const MIN_ROW_SHARE = 0.01;
 
   clearAndRun('chart-channel', (el) => {
     const channelTotal = DATA.channel.reduce((s, it) => s + it.netSales, 0);
     renderDonut(el, 'Sales by Channel', 'Share of Net Sales', DATA.channel, ['#00AFB9', '#F07167'], {
       detailHeaders: ['Channel', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
-      detailRows: DATA.channel.map((it) => [it.k, fmtMoney(it.netSales), ((it.netSales / (channelTotal || 1)) * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount || 0), ((it.skuShare || 0) * 100).toFixed(0) + '%']),
+      detailRows: DATA.channel.filter((it) => it.netSales / (channelTotal || 1) >= MIN_ROW_SHARE).map((it) => [it.k, fmtMoney(it.netSales), ((it.netSales / (channelTotal || 1)) * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount || 0), ((it.skuShare || 0) * 100).toFixed(0) + '%']),
     });
   });
 
-  clearAndRun('chart-productGroup', (el) => renderDonut(el, 'Sales by Product Group', 'Share of Net Sales', DATA.productGroup, ['#2A9D8F', '#E9C46A', '#F4A261', '#E76F51'], {
-    detailHeaders: ['Product Group', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
-    detailRows: DATA.productGroup.map((it) => [it.k, fmtMoney(it.netSales), ((it.netSales / (DATA.productGroup.reduce((s, x) => s + x.netSales, 0) || 1)) * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount || 0), ((it.skuShare || 0) * 100).toFixed(0) + '%']),
-  }));
+  clearAndRun('chart-productGroup', (el) => {
+    const productGroupTotal = DATA.productGroup.reduce((s, x) => s + x.netSales, 0);
+    renderDonut(el, 'Sales by Product Group', 'Share of Net Sales', DATA.productGroup, ['#2A9D8F', '#E9C46A', '#F4A261', '#E76F51'], {
+      detailHeaders: ['Product Group', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
+      detailRows: DATA.productGroup.filter((it) => it.netSales / (productGroupTotal || 1) >= MIN_ROW_SHARE).map((it) => [it.k, fmtMoney(it.netSales), ((it.netSales / (productGroupTotal || 1)) * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount || 0), ((it.skuShare || 0) * 100).toFixed(0) + '%']),
+    });
+  });
 
   clearAndRun('chart-priceSegment', (el) => renderDonut(el, 'Sales by Price Segment', 'Share of Net Sales', DATA.priceSegment, ['#9D7FB5', '#E8698F', '#7B93E0'], {
     detailHeaders: ['Segment', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
-    detailRows: DATA.priceSegment.map((it) => [it.k, fmtMoney(it.netSales), (it.salesShare * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount), (it.skuShare * 100).toFixed(0) + '%']),
+    detailRows: DATA.priceSegment.filter((it) => it.salesShare >= MIN_ROW_SHARE).map((it) => [it.k, fmtMoney(it.netSales), (it.salesShare * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount), (it.skuShare * 100).toFixed(0) + '%']),
   }));
 
   clearAndRun('chart-colorGroup', (el) => renderBarList(el, 'Sales by Color Group', 'Net Sales, THB', DATA.colorGroup, {
