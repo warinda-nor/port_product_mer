@@ -174,7 +174,7 @@
   .kpi-delta.good { color: var(--good); }
   .kpi-delta.bad { color: var(--critical); }
   .kpi-left { flex: none; }
-  .kpi-spark { flex: 1 1 auto; min-width: 70px; margin-left: 10px; cursor: crosshair; }
+  .kpi-spark { flex: 1 1 auto; min-width: 70px; margin-left: 10px; cursor: crosshair; position: relative; }
   .kpi-prior { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
 
   /* ---------- share bars (focus / private brand) ---------- */
@@ -428,12 +428,17 @@ function renderSparkline(curValues, priorValues, pointLabels, yearCur, yearPrior
   const priorPath = smoothPathFor(idxs, priorPts);
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
-  // width/height stretch to whatever box .kpi-spark gives it (preserveAspectRatio
-  // "none" lets the 180x44 coordinate system scale non-uniformly to fill it).
-  svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.style.overflow = 'visible';
   svg.style.display = 'block';
+  // Absolutely positioned to fill .kpi-spark (position: relative) exactly — SVG's
+  // own percentage width/height attributes resolve unreliably when the parent's
+  // height comes from a flex "stretch" rather than a declared CSS height.
+  svg.style.position = 'absolute';
+  svg.style.top = '0'; svg.style.right = '0'; svg.style.bottom = '0'; svg.style.left = '0';
+  svg.style.width = '100%';
+  svg.style.height = '100%';
 
   const baseY = h - pad;
   const area = document.createElementNS(svgNS, 'path');
