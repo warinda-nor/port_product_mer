@@ -1057,18 +1057,8 @@ function renderHeroTable(container, title, sub, items) {
     addCell(it.name, 'name');
 
     const imgTd = document.createElement('td');
-    if (it.image) {
-      const img = document.createElement('img');
-      img.src = it.image;
-      img.alt = it.name;
-      img.style.width = '40px';
-      img.style.height = '40px';
-      img.style.objectFit = 'contain';
-      img.style.borderRadius = '4px';
-      img.style.background = '#ffffff';
-      img.style.border = '1px solid var(--grid)';
-      imgTd.appendChild(img);
-    } else {
+    function showImagePlaceholder() {
+      imgTd.innerHTML = '';
       const placeholder = document.createElement('div');
       placeholder.style.width = '40px';
       placeholder.style.height = '40px';
@@ -1081,6 +1071,23 @@ function renderHeroTable(container, title, sub, items) {
       placeholder.style.color = 'var(--text-muted)';
       placeholder.textContent = 'N/A';
       imgTd.appendChild(placeholder);
+    }
+    if (it.image) {
+      const img = document.createElement('img');
+      img.src = it.image;
+      img.alt = it.name;
+      img.style.width = '40px';
+      img.style.height = '40px';
+      img.style.objectFit = 'contain';
+      img.style.borderRadius = '4px';
+      img.style.background = '#ffffff';
+      img.style.border = '1px solid var(--grid)';
+      // Not every Article Id necessarily has a hosted image at this URL — fall
+      // back to the same placeholder instead of showing a broken-image icon.
+      img.onerror = showImagePlaceholder;
+      imgTd.appendChild(img);
+    } else {
+      showImagePlaceholder();
     }
     tr.appendChild(imgTd);
 
@@ -1143,7 +1150,7 @@ const FIELD = {
   VENDOR: 'Vendor Name',
   COLOR: 'Col Name',
   FOCUS: 'flag_focus_new (group)',
-  PRICE_CLASS: 'Class price',
+  PRICE_CLASS: 'Universe',
   NET_SALES: 'Net Inc Tax',
   QTY: 'Sale Qty',
   MARGIN: '%Margin (no tax)',
@@ -1499,16 +1506,18 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
   })();
 
   const priceSegment = (() => {
-    const order = ['High', 'Medium', 'Mass'];
+    // Universe has no fixed hierarchy (ECO/FIGHTING/LOCAL/LUXURY/MASS/MOSAIC/PREMIUM),
+    // unlike the old 3-tier Class price — so rank by netSales like the other charts
+    // instead of a hardcoded category order.
     const totalSales = Object.entries(byPriceClass).reduce((s, [, v]) => s + ((v[currentYear] || {}).netSales || 0), 0);
     const totalSku = Object.keys(byPriceClass).reduce((s, k) => s + skuCountFor('byPriceClass', k, currentYear), 0);
-    return order.filter((k) => byPriceClass[k]).map((k) => {
+    return Object.keys(byPriceClass).map((k) => {
       const v = byPriceClass[k];
       const c = v[currentYear] || { netSales: 0, qty: 0 };
       const p = v[priorYear] || { netSales: 0, qty: 0 };
       const skuCount = skuCountFor('byPriceClass', k, currentYear);
       return { k, salesShare: totalSales ? c.netSales / totalSales : 0, skuShare: totalSku ? skuCount / totalSku : 0, skuCount, netSales: c.netSales, prior: p.netSales, growth: growth(c.netSales, p.netSales) };
-    });
+    }).sort((a, b) => b.netSales - a.netSales);
   })();
 
   const colorGroup = (() => {
@@ -1530,7 +1539,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
 
   const heroProducts = Object.entries(byArticle)
     .map(([id, v]) => ({
-      id, name: v.name, image: null, brand: v.brand, mch2: groupFor(v.mch1), mc: v.mc,
+      id, name: v.name, image: 'https://productimage.boonthavorn.com/o2/' + encodeURIComponent(id), brand: v.brand, mch2: groupFor(v.mch1), mc: v.mc,
       netSales2025: (v[priorYear] || { netSales: 0 }).netSales,
       netSales2026: (v[currentYear] || { netSales: 0 }).netSales,
       qty2025: (v[priorYear] || { qty: 0 }).qty,
@@ -1652,7 +1661,7 @@ function renderDashboard(DATA) {
     });
   });
 
-  clearAndRun('chart-priceSegment', (el) => renderDonut(el, 'Sales by Price Segment', 'Share of Net Sales', DATA.priceSegment, ['#9D7FB5', '#E8698F', '#7B93E0'], {
+  clearAndRun('chart-priceSegment', (el) => renderDonut(el, 'Sales by Price Segment', 'Share of Net Sales', DATA.priceSegment, ['#9D7FB5', '#E8698F', '#7B93E0', '#5DBE8A', '#E0A458', '#4FB8C4', '#C97B63'], {
     detailHeaders: ['Segment', 'Net Sales', '%Share of Sales', '%Growth Sales', 'SKU Count', '%Share SKU'],
     detailRows: DATA.priceSegment.filter((it) => it.salesShare >= MIN_ROW_SHARE).map((it) => [it.k, fmtMoney(it.netSales), (it.salesShare * 100).toFixed(0) + '%', growthCell(it.growth), fmtInt(it.skuCount), (it.skuShare * 100).toFixed(0) + '%']),
   }));

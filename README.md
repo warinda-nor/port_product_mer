@@ -31,7 +31,7 @@ flag_focus_new (group)
 ```
 Rows shelf: `MONTH(Time Date)` (or `Time Date` at day grain — either works, since this
 worksheet only aggregates by month). No `Article Id`, `Article Name Th`, `Mch1 Desc`,
-`Mc Desc`, `Vendor Name`, `Sls Grp Desc`, `Class price`, or `Col Name` on Detail —
+`Mc Desc`, `Vendor Name`, `Sls Grp Desc`, `Universe`, or `Col Name` on Detail —
 that's what keeps this worksheet small.
 
 **2. Detail worksheet** — **Year-grain only** (no Month/Day), **with `Article Id`**.
@@ -43,7 +43,7 @@ to keep alongside the other Article-level attributes already on this worksheet.
 ```
 Time Date               Article Id            Article Name Th
 Brand                    Mch1 Desc             Mc Desc
-Vendor Name              Sls Grp Desc          Class price
+Vendor Name              Sls Grp Desc          Universe
 Col Name                 Net Inc Tax           Sale Qty
 ```
 Rows shelf: `YEAR(Time Date)` — do **not** add Month/Day here, since crossing
@@ -99,7 +99,7 @@ double-check after Pages finishes its first deploy (can take a minute or two).
    `flag_focus_new (group)` on the **Detail** shelf. No `Article Id`, no `Col Name`.
 3. Build the **Detail worksheet**: `YEAR(Time Date)` plus `Article Id`,
    `Article Name Th`, `Brand`, `Mch1 Desc`, `Mc Desc`, `Vendor Name`, `Sls Grp Desc`,
-   `Class price`, `Col Name`, `Net Inc Tax`, `Sale Qty` on the **Detail** shelf. No
+   `Universe`, `Col Name`, `Net Inc Tax`, `Sale Qty` on the **Detail** shelf. No
    `Sls Ofc Desc`, `Flag_PrivateBrand`, or `flag_focus_new (group)` here.
 4. Add **both** worksheets to the same dashboard, then **Objects → Extension** →
    browse to `PortFittingOverview.trex` → **Add**.
