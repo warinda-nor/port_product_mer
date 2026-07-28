@@ -95,6 +95,9 @@
     justify-content: space-between;
     gap: 24px;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 50;
   }
   .brand { display: flex; align-items: center; gap: 14px; }
   .brand .mark {
@@ -402,17 +405,27 @@ function smoothPathFor(idxs, pts) {
   }
   return d;
 }
-function renderSparkline(values, splitIndex, pointLabels) {
+// By-month overlay: current-year and prior-year share the same x position per
+// month (like the main trend chart), instead of one line concatenating both years
+// end-to-end.
+function renderSparkline(curValues, priorValues, pointLabels) {
   const w = 180, h = 44, pad = 6;
-  const min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+  const allValues = curValues.concat(priorValues);
+  const min = Math.min.apply(null, allValues), max = Math.max.apply(null, allValues);
   const range = (max - min) || 1;
-  const pts = values.map((v, i) => {
-    const x = pad + (i / (values.length - 1)) * (w - pad*2);
-    const y = h - pad - ((v - min) / range) * (h - pad*2);
-    return [x, y];
-  });
-  const allIdx = pts.map((_, i) => i);
-  const linePath = smoothPathFor(allIdx, pts);
+  const n = curValues.length;
+  function toPts(values) {
+    return values.map((v, i) => {
+      const x = pad + (n === 1 ? (w - pad * 2) / 2 : (i / (n - 1)) * (w - pad * 2));
+      const y = h - pad - ((v - min) / range) * (h - pad * 2);
+      return [x, y];
+    });
+  }
+  const curPts = toPts(curValues);
+  const priorPts = toPts(priorValues);
+  const idxs = curPts.map((_, i) => i);
+  const curPath = smoothPathFor(idxs, curPts);
+  const priorPath = smoothPathFor(idxs, priorPts);
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
   svg.setAttribute('width', '100%'); svg.setAttribute('height', h); svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
@@ -422,20 +435,35 @@ function renderSparkline(values, splitIndex, pointLabels) {
 
   const baseY = h - pad;
   const area = document.createElementNS(svgNS, 'path');
-  area.setAttribute('d', linePath + ' L' + pts[pts.length - 1][0].toFixed(1) + ',' + baseY + ' L' + pts[0][0].toFixed(1) + ',' + baseY + ' Z');
+  area.setAttribute('d', curPath + ' L' + curPts[curPts.length - 1][0].toFixed(1) + ',' + baseY + ' L' + curPts[0][0].toFixed(1) + ',' + baseY + ' Z');
   area.setAttribute('fill', 'var(--series-accent-wash)');
   area.setAttribute('stroke', 'none');
   svg.appendChild(area);
 
+  const priorLine = document.createElementNS(svgNS, 'path');
+  priorLine.setAttribute('d', priorPath); priorLine.setAttribute('fill', 'none');
+  priorLine.setAttribute('stroke', 'var(--series-prior)'); priorLine.setAttribute('stroke-width', '2');
+  priorLine.setAttribute('stroke-linecap', 'round'); priorLine.setAttribute('stroke-linejoin', 'round');
+  priorLine.setAttribute('stroke-dasharray', '3 2');
+  svg.appendChild(priorLine);
+
   const line = document.createElementNS(svgNS, 'path');
-  line.setAttribute('d', linePath); line.setAttribute('fill', 'none');
+  line.setAttribute('d', curPath); line.setAttribute('fill', 'none');
   line.setAttribute('stroke', 'var(--series-accent)'); line.setAttribute('stroke-width', '3');
   line.setAttribute('stroke-linecap', 'round'); line.setAttribute('stroke-linejoin', 'round');
   svg.appendChild(line);
 
-  pts.forEach((pt, i) => {
+  priorPts.forEach((pt, i) => {
     const dot = document.createElementNS(svgNS, 'circle');
-    dot.setAttribute('cx', pt[0]); dot.setAttribute('cy', pt[1]); dot.setAttribute('r', i === pts.length - 1 ? 3.5 : 2.5);
+    dot.setAttribute('cx', pt[0]); dot.setAttribute('cy', pt[1]); dot.setAttribute('r', 2);
+    dot.setAttribute('fill', 'var(--series-prior)');
+    dot.setAttribute('stroke', 'var(--surface-1)'); dot.setAttribute('stroke-width', '1');
+    svg.appendChild(dot);
+  });
+
+  curPts.forEach((pt, i) => {
+    const dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('cx', pt[0]); dot.setAttribute('cy', pt[1]); dot.setAttribute('r', i === curPts.length - 1 ? 3.5 : 2.5);
     dot.setAttribute('fill', 'var(--series-accent)');
     dot.setAttribute('stroke', 'var(--surface-1)'); dot.setAttribute('stroke-width', '1.5');
     svg.appendChild(dot);
@@ -445,7 +473,8 @@ function renderSparkline(values, splitIndex, pointLabels) {
     hit.addEventListener('pointermove', (e) => {
       showTooltip(e.clientX, e.clientY, (tt) => {
         ttTitle(tt, pointLabels ? pointLabels[i] : 'Point ' + (i+1));
-        ttRow(tt, 'Value', 'var(--series-accent)', typeof values[i] === 'number' ? fmtCompact(values[i]) : values[i]);
+        ttRow(tt, 'Current', 'var(--series-accent)', typeof curValues[i] === 'number' ? fmtCompact(curValues[i]) : curValues[i]);
+        ttRow(tt, 'Prior', 'var(--series-prior)', typeof priorValues[i] === 'number' ? fmtCompact(priorValues[i]) : priorValues[i]);
       });
     });
     hit.addEventListener('pointerleave', hideTooltip);
@@ -470,9 +499,9 @@ function renderKpiTile(container, opts) {
   prior.textContent = 'vs ' + (opts.priorLabel || 'prior period') + ': ' + opts.formatValue(opts.v2025);
   left.appendChild(prior);
   body.appendChild(left);
-  if (opts.sparkline) {
+  if (opts.sparklineCur) {
     const spark = document.createElement('div'); spark.className = 'kpi-spark';
-    spark.appendChild(renderSparkline(opts.sparkline, opts.sparklineSplit === undefined ? 3 : opts.sparklineSplit, opts.sparkLabels));
+    spark.appendChild(renderSparkline(opts.sparklineCur, opts.sparklinePrior, opts.sparkLabels));
     body.appendChild(spark);
   }
   container.appendChild(body);
@@ -1363,13 +1392,18 @@ function computeTrendPart(rows, colIndex) {
   const cur = totals[currentYear] || { netSales: 0, qty: 0, marginW: 0 };
   const pri = totals[priorYear] || { netSales: 0, qty: 0, marginW: 0 };
 
-  const sparkline = { netSales: [], qty: [], avgPrice: [], margin: [] };
-  monthsPresent.forEach((m) => { const v = monthlyOf(priorYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
-  monthsPresent.forEach((m) => { const v = monthlyOf(currentYear, m); sparkline.netSales.push(v.netSales); sparkline.qty.push(v.qty); sparkline.avgPrice.push(v.qty ? v.netSales / v.qty : 0); sparkline.margin.push(v.netSales ? v.marginW / v.netSales : 0); });
+  // By-month overlay (current year vs prior year sharing the same Jan..Jul x-axis),
+  // matching how the main trend chart compares years — not a concatenated timeline.
+  const sparklineCur = { netSales: [], qty: [], avgPrice: [], margin: [] };
+  const sparklinePrior = { netSales: [], qty: [], avgPrice: [], margin: [] };
+  monthsPresent.forEach((m) => {
+    const vp = monthlyOf(priorYear, m);
+    sparklinePrior.netSales.push(vp.netSales); sparklinePrior.qty.push(vp.qty); sparklinePrior.avgPrice.push(vp.qty ? vp.netSales / vp.qty : 0); sparklinePrior.margin.push(vp.netSales ? vp.marginW / vp.netSales : 0);
+    const vc = monthlyOf(currentYear, m);
+    sparklineCur.netSales.push(vc.netSales); sparklineCur.qty.push(vc.qty); sparklineCur.avgPrice.push(vc.qty ? vc.netSales / vc.qty : 0); sparklineCur.margin.push(vc.netSales ? vc.marginW / vc.netSales : 0);
+  });
 
-  const sparkLabels = [];
-  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + priorYear.slice(2)));
-  monthsPresent.forEach((m) => sparkLabels.push(monthAbbr[m] + " '" + currentYear.slice(2)));
+  const sparkLabels = monthsPresent.map((m) => monthAbbr[m]);
 
   const monthLabels = monthsPresent.map((m) => monthAbbr[m]);
   const trendSeries = (year) => monthsPresent.map((m) => monthlyOf(year, m).netSales);
@@ -1391,10 +1425,10 @@ function computeTrendPart(rows, colIndex) {
       priorRangeLabel: monthRangeLabel + ' ' + priorYear,
     },
     kpiCore: {
-      netSales: { v2026: cur.netSales, v2025: pri.netSales, sparkline: sparkline.netSales },
-      qty: { v2026: cur.qty, v2025: pri.qty, sparkline: sparkline.qty },
-      avgPrice: { v2026: cur.qty ? cur.netSales / cur.qty : 0, v2025: pri.qty ? pri.netSales / pri.qty : 0, sparkline: sparkline.avgPrice },
-      margin: { v2026: cur.netSales ? cur.marginW / cur.netSales : 0, v2025: pri.netSales ? pri.marginW / pri.netSales : 0, sparkline: sparkline.margin },
+      netSales: { v2026: cur.netSales, v2025: pri.netSales, sparklineCur: sparklineCur.netSales, sparklinePrior: sparklinePrior.netSales },
+      qty: { v2026: cur.qty, v2025: pri.qty, sparklineCur: sparklineCur.qty, sparklinePrior: sparklinePrior.qty },
+      avgPrice: { v2026: cur.qty ? cur.netSales / cur.qty : 0, v2025: pri.qty ? pri.netSales / pri.qty : 0, sparklineCur: sparklineCur.avgPrice, sparklinePrior: sparklinePrior.avgPrice },
+      margin: { v2026: cur.netSales ? cur.marginW / cur.netSales : 0, v2025: pri.netSales ? pri.marginW / pri.netSales : 0, sparklineCur: sparklineCur.margin, sparklinePrior: sparklinePrior.margin },
     },
     trend: { months: monthLabels, netSales2025: trendSeries(priorYear), netSales2026: trendSeries(currentYear) },
     office, privateBrand: privateBrandArr, focus: focusArr,
@@ -1607,23 +1641,22 @@ function renderDashboard(DATA) {
   document.getElementById('subtitle').textContent = DATA.meta.subtitle;
   document.getElementById('asof').textContent = 'Data as of : ' + DATA.meta.asOf;
 
-  const sparklineSplit = DATA.trend.months.length;
   const priorLabel = DATA.meta.priorRangeLabel;
   clearAndRun('kpi-netSales', (el) => renderKpiTile(el, {
     label: 'Net Sales (Net Inc Tax)', v2026: DATA.kpi.netSales.v2026, v2025: DATA.kpi.netSales.v2025,
-    formatValue: (v) => fmtMoney(v), sparkline: DATA.kpi.netSales.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
+    formatValue: (v) => fmtMoney(v), sparklineCur: DATA.kpi.netSales.sparklineCur, sparklinePrior: DATA.kpi.netSales.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
   }));
   clearAndRun('kpi-qty', (el) => renderKpiTile(el, {
     label: 'Sale Qty (Pcs.)', v2026: DATA.kpi.qty.v2026, v2025: DATA.kpi.qty.v2025,
-    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.qty.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
+    formatValue: (v) => fmtInt(v), sparklineCur: DATA.kpi.qty.sparklineCur, sparklinePrior: DATA.kpi.qty.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
   }));
   clearAndRun('kpi-avgPrice', (el) => renderKpiTile(el, {
     label: 'Avg. Selling Price', v2026: DATA.kpi.avgPrice.v2026, v2025: DATA.kpi.avgPrice.v2025,
-    formatValue: (v) => fmtInt(v), sparkline: DATA.kpi.avgPrice.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
+    formatValue: (v) => fmtInt(v), sparklineCur: DATA.kpi.avgPrice.sparklineCur, sparklinePrior: DATA.kpi.avgPrice.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
   }));
   clearAndRun('kpi-margin', (el) => renderKpiTile(el, {
     label: 'Margin % (no tax)', v2026: DATA.kpi.margin.v2026, v2025: DATA.kpi.margin.v2025,
-    formatValue: (v) => (v * 100).toFixed(1) + '%', sparkline: DATA.kpi.margin.sparkline, sparkLabels: DATA.sparkLabels, sparklineSplit, priorLabel,
+    formatValue: (v) => (v * 100).toFixed(1) + '%', sparklineCur: DATA.kpi.margin.sparklineCur, sparklinePrior: DATA.kpi.margin.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
   }));
 
   clearAndRun('chip-sku', (el) => renderChip(el, 'SKU Count', DATA.kpi.sku.v2026, DATA.kpi.sku.v2025));
