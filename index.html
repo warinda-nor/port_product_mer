@@ -168,7 +168,7 @@
 
   /* ---------- KPI stat tiles ---------- */
   .kpi-label { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; }
-  .kpi-body { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 6px; }
+  .kpi-body { display: flex; align-items: stretch; justify-content: space-between; gap: 10px; margin-top: 6px; }
   .kpi-value { font-size: 32px; font-weight: 700; line-height: 1.1; }
   .kpi-delta { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 4px; margin-top: 5px; }
   .kpi-delta.good { color: var(--good); }
@@ -408,7 +408,7 @@ function smoothPathFor(idxs, pts) {
 // By-month overlay: current-year and prior-year share the same x position per
 // month (like the main trend chart), instead of one line concatenating both years
 // end-to-end.
-function renderSparkline(curValues, priorValues, pointLabels) {
+function renderSparkline(curValues, priorValues, pointLabels, yearCur, yearPrior) {
   const w = 180, h = 44, pad = 6;
   const allValues = curValues.concat(priorValues);
   const min = Math.min.apply(null, allValues), max = Math.max.apply(null, allValues);
@@ -428,7 +428,9 @@ function renderSparkline(curValues, priorValues, pointLabels) {
   const priorPath = smoothPathFor(idxs, priorPts);
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('width', '100%'); svg.setAttribute('height', h); svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  // width/height stretch to whatever box .kpi-spark gives it (preserveAspectRatio
+  // "none" lets the 180x44 coordinate system scale non-uniformly to fill it).
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.style.overflow = 'visible';
   svg.style.display = 'block';
@@ -473,8 +475,9 @@ function renderSparkline(curValues, priorValues, pointLabels) {
     hit.addEventListener('pointermove', (e) => {
       showTooltip(e.clientX, e.clientY, (tt) => {
         ttTitle(tt, pointLabels ? pointLabels[i] : 'Point ' + (i+1));
-        ttRow(tt, 'Current', 'var(--series-accent)', typeof curValues[i] === 'number' ? fmtCompact(curValues[i]) : curValues[i]);
-        ttRow(tt, 'Prior', 'var(--series-prior)', typeof priorValues[i] === 'number' ? fmtCompact(priorValues[i]) : priorValues[i]);
+        ttRow(tt, yearCur !== undefined ? String(yearCur) : 'Current', 'var(--series-accent)', typeof curValues[i] === 'number' ? fmtCompact(curValues[i]) : curValues[i]);
+        ttRow(tt, yearPrior !== undefined ? String(yearPrior) : 'Prior', 'var(--series-prior)', typeof priorValues[i] === 'number' ? fmtCompact(priorValues[i]) : priorValues[i]);
+        ttRow(tt, '%Growth', null, fmtPct(growth(curValues[i], priorValues[i])));
       });
     });
     hit.addEventListener('pointerleave', hideTooltip);
@@ -501,7 +504,7 @@ function renderKpiTile(container, opts) {
   body.appendChild(left);
   if (opts.sparklineCur) {
     const spark = document.createElement('div'); spark.className = 'kpi-spark';
-    spark.appendChild(renderSparkline(opts.sparklineCur, opts.sparklinePrior, opts.sparkLabels));
+    spark.appendChild(renderSparkline(opts.sparklineCur, opts.sparklinePrior, opts.sparkLabels, opts.yearCur, opts.yearPrior));
     body.appendChild(spark);
   }
   container.appendChild(body);
@@ -1603,6 +1606,8 @@ function countArticlesInYear(byArticle, year) {
 // result (everything at Article Id grain) into the single DATA shape renderDashboard expects.
 function computeDashboardData(trendPart, detailPart) {
   return {
+    currentYear: trendPart.currentYear,
+    priorYear: trendPart.priorYear,
     meta: trendPart.meta,
     sparkLabels: trendPart.sparkLabels,
     kpi: {
@@ -1642,21 +1647,22 @@ function renderDashboard(DATA) {
   document.getElementById('asof').textContent = 'Data as of : ' + DATA.meta.asOf;
 
   const priorLabel = DATA.meta.priorRangeLabel;
+  const yearCur = DATA.currentYear, yearPrior = DATA.priorYear;
   clearAndRun('kpi-netSales', (el) => renderKpiTile(el, {
     label: 'Net Sales (Net Inc Tax)', v2026: DATA.kpi.netSales.v2026, v2025: DATA.kpi.netSales.v2025,
-    formatValue: (v) => fmtMoney(v), sparklineCur: DATA.kpi.netSales.sparklineCur, sparklinePrior: DATA.kpi.netSales.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
+    formatValue: (v) => fmtMoney(v), sparklineCur: DATA.kpi.netSales.sparklineCur, sparklinePrior: DATA.kpi.netSales.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel, yearCur, yearPrior,
   }));
   clearAndRun('kpi-qty', (el) => renderKpiTile(el, {
     label: 'Sale Qty (Pcs.)', v2026: DATA.kpi.qty.v2026, v2025: DATA.kpi.qty.v2025,
-    formatValue: (v) => fmtInt(v), sparklineCur: DATA.kpi.qty.sparklineCur, sparklinePrior: DATA.kpi.qty.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
+    formatValue: (v) => fmtInt(v), sparklineCur: DATA.kpi.qty.sparklineCur, sparklinePrior: DATA.kpi.qty.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel, yearCur, yearPrior,
   }));
   clearAndRun('kpi-avgPrice', (el) => renderKpiTile(el, {
     label: 'Avg. Selling Price', v2026: DATA.kpi.avgPrice.v2026, v2025: DATA.kpi.avgPrice.v2025,
-    formatValue: (v) => fmtInt(v), sparklineCur: DATA.kpi.avgPrice.sparklineCur, sparklinePrior: DATA.kpi.avgPrice.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
+    formatValue: (v) => fmtInt(v), sparklineCur: DATA.kpi.avgPrice.sparklineCur, sparklinePrior: DATA.kpi.avgPrice.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel, yearCur, yearPrior,
   }));
   clearAndRun('kpi-margin', (el) => renderKpiTile(el, {
     label: 'Margin % (no tax)', v2026: DATA.kpi.margin.v2026, v2025: DATA.kpi.margin.v2025,
-    formatValue: (v) => (v * 100).toFixed(1) + '%', sparklineCur: DATA.kpi.margin.sparklineCur, sparklinePrior: DATA.kpi.margin.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel,
+    formatValue: (v) => (v * 100).toFixed(1) + '%', sparklineCur: DATA.kpi.margin.sparklineCur, sparklinePrior: DATA.kpi.margin.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel, yearCur, yearPrior,
   }));
 
   clearAndRun('chip-sku', (el) => renderChip(el, 'SKU Count', DATA.kpi.sku.v2026, DATA.kpi.sku.v2025));
