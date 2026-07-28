@@ -168,13 +168,13 @@
 
   /* ---------- KPI stat tiles ---------- */
   .kpi-label { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; }
-  .kpi-body { display: flex; align-items: stretch; justify-content: space-between; gap: 10px; margin-top: 6px; }
+  .kpi-body { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 6px; }
   .kpi-value { font-size: 32px; font-weight: 700; line-height: 1.1; }
   .kpi-delta { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 4px; margin-top: 5px; }
   .kpi-delta.good { color: var(--good); }
   .kpi-delta.bad { color: var(--critical); }
   .kpi-left { flex: none; }
-  .kpi-spark { flex: 1 1 auto; min-width: 70px; margin-left: 10px; cursor: crosshair; position: relative; }
+  .kpi-spark { flex: 1 1 auto; min-width: 70px; margin-left: 10px; cursor: crosshair; }
   .kpi-prior { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
 
   /* ---------- share bars (focus / private brand) ---------- */
@@ -238,8 +238,6 @@
   table.data-table tr:hover td { background: var(--series-accent-wash); }
   table.data-table td.rank { color: var(--text-muted); width: 28px; }
   table.data-table td.name { color: var(--text-primary); font-weight: 600; max-width: 320px; }
-
-  footer.note { padding: 14px 28px 4px; font-size: 12.5px; color: var(--text-muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 
   /* ---------- tooltip ---------- */
   #tooltip {
@@ -306,11 +304,6 @@
     <!-- Hero products table -->
     <div class="card col-12" id="table-hero"></div>
   </div>
-
-  <footer class="note">
-    <span>Source: Internal Sales Data (Data from ds) &middot; YoY compared with the same period last year (Jan&ndash;Mar 2025)</span>
-    <span>Prototype dashboard &middot; to be wired to live data via Tableau Extensions API</span>
-  </footer>
 </div>
 
 <div id="tooltip"></div>
@@ -428,17 +421,10 @@ function renderSparkline(curValues, priorValues, pointLabels, yearCur, yearPrior
   const priorPath = smoothPathFor(idxs, priorPts);
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.setAttribute('width', '100%'); svg.setAttribute('height', h); svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.style.overflow = 'visible';
   svg.style.display = 'block';
-  // Absolutely positioned to fill .kpi-spark (position: relative) exactly — SVG's
-  // own percentage width/height attributes resolve unreliably when the parent's
-  // height comes from a flex "stretch" rather than a declared CSS height.
-  svg.style.position = 'absolute';
-  svg.style.top = '0'; svg.style.right = '0'; svg.style.bottom = '0'; svg.style.left = '0';
-  svg.style.width = '100%';
-  svg.style.height = '100%';
 
   const baseY = h - pad;
   const area = document.createElementNS(svgNS, 'path');
@@ -507,17 +493,12 @@ function renderKpiTile(container, opts) {
   prior.textContent = 'vs ' + (opts.priorLabel || 'prior period') + ': ' + opts.formatValue(opts.v2025);
   left.appendChild(prior);
   body.appendChild(left);
-  let spark = null;
   if (opts.sparklineCur) {
-    spark = document.createElement('div'); spark.className = 'kpi-spark';
+    const spark = document.createElement('div'); spark.className = 'kpi-spark';
     spark.appendChild(renderSparkline(opts.sparklineCur, opts.sparklinePrior, opts.sparkLabels, opts.yearCur, opts.yearPrior));
     body.appendChild(spark);
   }
   container.appendChild(body);
-  // Match the sparkline box height to the left column's actual rendered height —
-  // more reliable than flexbox "stretch", whose cross-size calculation doesn't
-  // count an absolutely positioned SVG child, so stretch alone doesn't grow it.
-  if (spark) spark.style.height = left.getBoundingClientRect().height + 'px';
 }
 
 /* ---------------- chip tile ---------------- */
