@@ -507,12 +507,17 @@ function renderKpiTile(container, opts) {
   prior.textContent = 'vs ' + (opts.priorLabel || 'prior period') + ': ' + opts.formatValue(opts.v2025);
   left.appendChild(prior);
   body.appendChild(left);
+  let spark = null;
   if (opts.sparklineCur) {
-    const spark = document.createElement('div'); spark.className = 'kpi-spark';
+    spark = document.createElement('div'); spark.className = 'kpi-spark';
     spark.appendChild(renderSparkline(opts.sparklineCur, opts.sparklinePrior, opts.sparkLabels, opts.yearCur, opts.yearPrior));
     body.appendChild(spark);
   }
   container.appendChild(body);
+  // Match the sparkline box height to the left column's actual rendered height —
+  // more reliable than flexbox "stretch", whose cross-size calculation doesn't
+  // count an absolutely positioned SVG child, so stretch alone doesn't grow it.
+  if (spark) spark.style.height = left.getBoundingClientRect().height + 'px';
 }
 
 /* ---------------- chip tile ---------------- */
