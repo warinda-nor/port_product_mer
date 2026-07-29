@@ -352,7 +352,7 @@ function showTooltip(x, y, buildFn) {
   tooltipEl.style.top = top + 'px';
 }
 function hideTooltip() { tooltipEl.classList.remove('show'); }
-function ttRow(parent, keyLabel, keyColor, value) {
+function ttRow(parent, keyLabel, keyColor, value, valueColor) {
   const row = document.createElement('div');
   row.className = 'tt-row';
   const key = document.createElement('span');
@@ -369,6 +369,7 @@ function ttRow(parent, keyLabel, keyColor, value) {
   const val = document.createElement('span');
   val.className = 'tt-val';
   val.textContent = value;
+  if (valueColor) val.style.color = valueColor;
   row.appendChild(key);
   row.appendChild(val);
   parent.appendChild(row);
@@ -468,7 +469,10 @@ function renderSparkline(curValues, priorValues, pointLabels, yearCur, yearPrior
         ttTitle(tt, pointLabels ? pointLabels[i] : 'Point ' + (i+1));
         ttRow(tt, yearCur !== undefined ? String(yearCur) : 'Current', 'var(--series-accent)', typeof curValues[i] === 'number' ? fmtCompact(curValues[i]) : curValues[i]);
         ttRow(tt, yearPrior !== undefined ? String(yearPrior) : 'Prior', 'var(--series-prior)', typeof priorValues[i] === 'number' ? fmtCompact(priorValues[i]) : priorValues[i]);
-        ttRow(tt, '%Growth', null, fmtPct(growth(curValues[i], priorValues[i])));
+        {
+          const g = growth(curValues[i], priorValues[i]);
+          ttRow(tt, '%Growth', null, fmtPct(g), g >= 0 ? 'var(--good)' : 'var(--critical)');
+        }
       });
     });
     hit.addEventListener('pointerleave', hideTooltip);
@@ -519,7 +523,7 @@ function renderChip(container, label, v2026, v2025) {
       ttTitle(tt, label);
       ttRow(tt, '2026', 'var(--series-accent)', fmtInt(v2026));
       ttRow(tt, '2025', 'var(--series-prior)', fmtInt(v2025));
-      ttRow(tt, 'Growth', null, fmtPct(growth));
+      ttRow(tt, 'Growth', null, fmtPct(growth), growth >= 0 ? 'var(--good)' : 'var(--critical)');
     });
   });
   container.addEventListener('pointerleave', hideTooltip);
@@ -545,7 +549,7 @@ function renderShareBar(container, title, sub, items, colors) {
         ttRow(tt, 'Net Sales 2026', colors[i % colors.length], fmtMoney(it.netSales));
         ttRow(tt, 'vs 2025', null, fmtMoney(it.prior));
         const g = (it.netSales - it.prior) / it.prior;
-        ttRow(tt, 'Growth', null, fmtPct(g));
+        ttRow(tt, 'Growth', null, fmtPct(g), g >= 0 ? 'var(--good)' : 'var(--critical)');
       });
     });
     seg.addEventListener('pointerleave', hideTooltip);
@@ -624,7 +628,7 @@ function renderBarList(container, title, sub, items, opts) {
       ttTitle(tt, it.k);
       ttRow(tt, 'Net Sales 2026', color, fmtMoney(it.netSales));
       ttRow(tt, 'vs 2025', null, fmtMoney(it.prior));
-      ttRow(tt, 'Growth', null, fmtPct(g));
+      ttRow(tt, 'Growth', null, fmtPct(g), g >= 0 ? 'var(--good)' : 'var(--critical)');
       if (it.sku) ttRow(tt, 'SKU count', null, fmtInt(it.sku));
     };
     if (opts.stacked) {
@@ -739,7 +743,7 @@ function renderDonut(container, title, sub, items, colors, opts) {
         ttRow(tt, 'Net Sales 2026', colors[i % colors.length], fmtMoney(it.netSales));
         ttRow(tt, 'Share', null, (share*100).toFixed(1) + '%');
         ttRow(tt, 'vs 2025', null, fmtMoney(it.prior));
-        ttRow(tt, 'Growth', null, fmtPct(it.growth));
+        ttRow(tt, 'Growth', null, fmtPct(it.growth), it.growth >= 0 ? 'var(--good)' : 'var(--critical)');
       });
     });
     path.addEventListener('pointerleave', hideTooltip);
@@ -995,7 +999,7 @@ function renderTrendChart(container, title, sub, months, series2025, series2026)
         ttRow(tt, '2026', 'var(--series-accent)', fmtMoney(series2026[i]));
         ttRow(tt, '2025', 'var(--series-prior)', fmtMoney(series2025[i]));
         const g = (series2026[i] - series2025[i]) / series2025[i];
-        ttRow(tt, 'YoY Growth', null, fmtPct(g));
+        ttRow(tt, 'YoY Growth', null, fmtPct(g), g >= 0 ? 'var(--good)' : 'var(--critical)');
       });
     });
     hit.addEventListener('pointerleave', () => { crosshair.setAttribute('opacity', '0'); hideTooltip(); });
@@ -1166,6 +1170,7 @@ const FIELD = {
   OFFICE: 'Sls Ofc Desc',
   ARTICLE_ID: 'Article Id',
   ARTICLE_NAME: 'Article Name Th',
+  IMAGE: 'Image',
   BRAND: 'Brand',
   MCH1: 'Mch1 Desc',
   MC: 'Mc Desc',
@@ -1436,7 +1441,7 @@ function computeTrendPart(rows, colIndex) {
  * since `Col Name` is already on this worksheet) — everything else lives on the
  * Trend worksheet to avoid multiplying Article Id against unrelated dimensions.
  */
-const DETAIL_FIELD_KEYS = ['DATE', 'ARTICLE_ID', 'ARTICLE_NAME', 'BRAND', 'MCH1', 'MC', 'VENDOR', 'CHANNEL', 'PRICE_CLASS', 'COLOR', 'NET_SALES', 'QTY'];
+const DETAIL_FIELD_KEYS = ['DATE', 'ARTICLE_ID', 'ARTICLE_NAME', 'IMAGE', 'BRAND', 'MCH1', 'MC', 'VENDOR', 'CHANNEL', 'PRICE_CLASS', 'COLOR', 'NET_SALES', 'QTY'];
 
 function computeDetailPart(rows, colIndex, currentYear, priorYear) {
   const missing = DETAIL_FIELD_KEYS.map((k) => FIELD[k]).filter((f) => colIndex[f] === undefined);
@@ -1469,6 +1474,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
     const priceClass = val(row, colIndex, FIELD.PRICE_CLASS);
     const brand = val(row, colIndex, FIELD.BRAND);
     const articleName = val(row, colIndex, FIELD.ARTICLE_NAME);
+    const image = val(row, colIndex, FIELD.IMAGE);
     const mc = val(row, colIndex, FIELD.MC);
     const colorRaw = val(row, colIndex, FIELD.COLOR);
 
@@ -1492,7 +1498,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
     if (colorRaw) addYear(byColorRaw, colorRaw, year, netSales, qty);
 
     if (articleId) {
-      if (!byArticle[articleId]) byArticle[articleId] = { name: articleName, brand: brand, mch1: mch1, mc: mc };
+      if (!byArticle[articleId]) byArticle[articleId] = { name: articleName, image: image, brand: brand, mch1: mch1, mc: mc };
       if (!byArticle[articleId][year]) byArticle[articleId][year] = { netSales: 0, qty: 0 };
       byArticle[articleId][year].netSales += netSales;
       byArticle[articleId][year].qty += qty;
@@ -1567,7 +1573,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
 
   const heroProducts = Object.entries(byArticle)
     .map(([id, v]) => ({
-      id, name: v.name, image: 'https://productimage.boonthavorn.com/o2/' + encodeURIComponent(id), brand: v.brand, mch2: groupFor(v.mch1), mc: v.mc,
+      id, name: v.name, image: v.image || null, brand: v.brand, mch2: groupFor(v.mch1), mc: v.mc,
       netSales2025: (v[priorYear] || { netSales: 0 }).netSales,
       netSales2026: (v[currentYear] || { netSales: 0 }).netSales,
       qty2025: (v[priorYear] || { qty: 0 }).qty,
@@ -1653,7 +1659,7 @@ function renderDashboard(DATA) {
   }));
   clearAndRun('kpi-margin', (el) => renderKpiTile(el, {
     label: 'Margin % (no tax)', v2026: DATA.kpi.margin.v2026, v2025: DATA.kpi.margin.v2025,
-    formatValue: (v) => (v * 100).toFixed(1) + '%', sparklineCur: DATA.kpi.margin.sparklineCur, sparklinePrior: DATA.kpi.margin.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel, yearCur, yearPrior,
+    formatValue: (v) => (v * 100).toFixed(2) + '%', sparklineCur: DATA.kpi.margin.sparklineCur, sparklinePrior: DATA.kpi.margin.sparklinePrior, sparkLabels: DATA.sparkLabels, priorLabel, yearCur, yearPrior,
   }));
 
   clearAndRun('chip-sku', (el) => renderChip(el, 'SKU Count', DATA.kpi.sku.v2026, DATA.kpi.sku.v2025));
@@ -1702,7 +1708,7 @@ function renderDashboard(DATA) {
   clearAndRun('chart-vendor', (el) => renderBarList(el, 'Top Vendor by Net Sales', 'Net Sales, THB · Top 10', DATA.topVendor, { stacked: true, compact: true, colorFor: () => '#7978B1' }));
   clearAndRun('chart-brand', (el) => renderBarList(el, 'Top Brand by Net Sales', 'Net Sales, THB · Top 10', DATA.topBrand, { stacked: true, compact: true, colorFor: () => '#7978B1' }));
 
-  clearAndRun('table-hero', (el) => renderHeroTable(el, 'Top 10 Hero Products by Net Sales', 'Ranked by Net Sales', DATA.heroProducts));
+  clearAndRun('table-hero', (el) => renderHeroTable(el, 'Top 10 Products by Net Sales', 'Ranked by Net Sales', DATA.heroProducts));
 }
 
 /* ---------------- Tableau initialization ---------------- */
