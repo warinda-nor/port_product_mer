@@ -303,6 +303,7 @@
 
     <!-- Hero products table -->
     <div class="card col-12" id="table-hero"></div>
+    <div class="card col-12" id="table-hero-qty"></div>
   </div>
 </div>
 
@@ -1056,7 +1057,7 @@ function renderHeroTable(container, title, sub, items) {
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
   const headers = [
-    '#', 'Article ID', 'Article Name', 'Image', 'Brand', 'Product Group', 'Mc Desc',
+    '#', 'Article ID', 'Article Name', 'Brand', 'Product Group', 'Mc Desc',
     'Net Sales 2025', 'Net Sales 2026', 'Growth Net Sales',
     'Sales Qty 2025', 'Sales Qty 2026', 'Growth Sales Qty',
   ];
@@ -1083,41 +1084,6 @@ function renderHeroTable(container, title, sub, items) {
     addCell(String(idx + 1), 'rank');
     addCell(it.id);
     addCell(it.name, 'name');
-
-    const imgTd = document.createElement('td');
-    function showImagePlaceholder() {
-      imgTd.innerHTML = '';
-      const placeholder = document.createElement('div');
-      placeholder.style.width = '40px';
-      placeholder.style.height = '40px';
-      placeholder.style.borderRadius = '4px';
-      placeholder.style.background = 'var(--grid)';
-      placeholder.style.display = 'flex';
-      placeholder.style.alignItems = 'center';
-      placeholder.style.justifyContent = 'center';
-      placeholder.style.fontSize = '9px';
-      placeholder.style.color = 'var(--text-muted)';
-      placeholder.textContent = 'N/A';
-      imgTd.appendChild(placeholder);
-    }
-    if (it.image) {
-      const img = document.createElement('img');
-      img.src = it.image;
-      img.alt = it.name;
-      img.style.width = '40px';
-      img.style.height = '40px';
-      img.style.objectFit = 'contain';
-      img.style.borderRadius = '4px';
-      img.style.background = '#ffffff';
-      img.style.border = '1px solid var(--grid)';
-      // Not every Article Id necessarily has a hosted image at this URL — fall
-      // back to the same placeholder instead of showing a broken-image icon.
-      img.onerror = showImagePlaceholder;
-      imgTd.appendChild(img);
-    } else {
-      showImagePlaceholder();
-    }
-    tr.appendChild(imgTd);
 
     addCell(it.brand);
     addCell(it.mch2);
@@ -1572,7 +1538,7 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
   const topVendor = topN(byVendor, 10, 'byVendor');
   const topBrand = topN(byBrand, 10);
 
-  const heroProducts = Object.entries(byArticle)
+  const allArticles = Object.entries(byArticle)
     .map(([id, v]) => ({
       id, name: v.name, image: v.image || null, brand: v.brand, mch2: groupFor(v.mch1), mc: v.mc,
       netSales2025: (v[priorYear] || { netSales: 0 }).netSales,
@@ -1580,12 +1546,13 @@ function computeDetailPart(rows, colIndex, currentYear, priorYear) {
       qty2025: (v[priorYear] || { qty: 0 }).qty,
       qty2026: (v[currentYear] || { qty: 0 }).qty,
     }))
-    .map((it) => ({ ...it, growthNetSales: growth(it.netSales2026, it.netSales2025), growthQty: growth(it.qty2026, it.qty2025) }))
-    .sort((a, b) => b.netSales2026 - a.netSales2026)
-    .slice(0, 10);
+    .map((it) => ({ ...it, growthNetSales: growth(it.netSales2026, it.netSales2025), growthQty: growth(it.qty2026, it.qty2025) }));
+
+  const heroProducts = [...allArticles].sort((a, b) => b.netSales2026 - a.netSales2026).slice(0, 10);
+  const heroProductsByQty = [...allArticles].sort((a, b) => b.qty2026 - a.qty2026).slice(0, 10);
 
   return {
-    channel, productGroup, priceSegment, colorGroup, colorHex, topVendor, topBrand, heroProducts,
+    channel, productGroup, priceSegment, colorGroup, colorHex, topVendor, topBrand, heroProducts, heroProductsByQty,
     kpiExtra: {
       sku: { v2026: countArticlesInYear(byArticle, currentYear), v2025: countArticlesInYear(byArticle, priorYear) },
       vendor: { v2026: Object.keys(byVendor).filter((k) => byVendor[k][currentYear]).length, v2025: Object.keys(byVendor).filter((k) => byVendor[k][priorYear]).length },
@@ -1629,6 +1596,7 @@ function computeDashboardData(trendPart, detailPart) {
     topVendor: detailPart.topVendor,
     topBrand: detailPart.topBrand,
     heroProducts: detailPart.heroProducts,
+    heroProductsByQty: detailPart.heroProductsByQty,
   };
 }
 
@@ -1710,6 +1678,7 @@ function renderDashboard(DATA) {
   clearAndRun('chart-brand', (el) => renderBarList(el, 'Top Brand by Net Sales', 'Net Sales, THB · Top 10', DATA.topBrand, { stacked: true, compact: true, colorFor: () => '#7978B1' }));
 
   clearAndRun('table-hero', (el) => renderHeroTable(el, 'Top 10 Products by Net Sales', 'Ranked by Net Sales', DATA.heroProducts));
+  clearAndRun('table-hero-qty', (el) => renderHeroTable(el, 'Top 10 Products by Sales Qty', 'Ranked by Sales Qty', DATA.heroProductsByQty));
 }
 
 /* ---------------- Tableau initialization ---------------- */
