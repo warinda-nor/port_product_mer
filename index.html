@@ -402,7 +402,7 @@ function smoothPathFor(idxs, pts) {
 // By-month overlay: current-year and prior-year share the same x position per
 // month (like the main trend chart), instead of one line concatenating both years
 // end-to-end.
-function renderSparkline(curValues, priorValues, pointLabels, yearCur, yearPrior) {
+function renderSparkline(curValues, priorValues, pointLabels, yearCur, yearPrior, formatValue) {
   const w = 180, h = 44, pad = 6;
   const allValues = curValues.concat(priorValues);
   const min = Math.min.apply(null, allValues), max = Math.max.apply(null, allValues);
@@ -467,8 +467,9 @@ function renderSparkline(curValues, priorValues, pointLabels, yearCur, yearPrior
     hit.addEventListener('pointermove', (e) => {
       showTooltip(e.clientX, e.clientY, (tt) => {
         ttTitle(tt, pointLabels ? pointLabels[i] : 'Point ' + (i+1));
-        ttRow(tt, yearCur !== undefined ? String(yearCur) : 'Current', 'var(--series-accent)', typeof curValues[i] === 'number' ? fmtCompact(curValues[i]) : curValues[i]);
-        ttRow(tt, yearPrior !== undefined ? String(yearPrior) : 'Prior', 'var(--series-prior)', typeof priorValues[i] === 'number' ? fmtCompact(priorValues[i]) : priorValues[i]);
+        const fmt = formatValue || fmtCompact;
+        ttRow(tt, yearCur !== undefined ? String(yearCur) : 'Current', 'var(--series-accent)', typeof curValues[i] === 'number' ? fmt(curValues[i]) : curValues[i]);
+        ttRow(tt, yearPrior !== undefined ? String(yearPrior) : 'Prior', 'var(--series-prior)', typeof priorValues[i] === 'number' ? fmt(priorValues[i]) : priorValues[i]);
         {
           const g = growth(curValues[i], priorValues[i]);
           ttRow(tt, '%Growth', null, fmtPct(g), g >= 0 ? 'var(--good)' : 'var(--critical)');
@@ -499,7 +500,7 @@ function renderKpiTile(container, opts) {
   body.appendChild(left);
   if (opts.sparklineCur) {
     const spark = document.createElement('div'); spark.className = 'kpi-spark';
-    spark.appendChild(renderSparkline(opts.sparklineCur, opts.sparklinePrior, opts.sparkLabels, opts.yearCur, opts.yearPrior));
+    spark.appendChild(renderSparkline(opts.sparklineCur, opts.sparklinePrior, opts.sparkLabels, opts.yearCur, opts.yearPrior, opts.formatValue));
     body.appendChild(spark);
   }
   container.appendChild(body);
