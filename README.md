@@ -11,6 +11,8 @@ recomputes every chart client-side (grouping, YoY comparison, top-N rankings, et
 | `index.html` | The extension itself — same look as the static dashboard, but loads live data |
 | `PortFittingOverview.trex` | Tableau manifest — tells Tableau where to load the extension from |
 | `tableau.extensions.1.latest.js` | Official Tableau Extensions API library (local copy) |
+| `vendor-overview/index.html` | Second extension — Vendor Overview page, see below |
+| `vendor-overview/VendorOverview.trex` | Manifest for the Vendor Overview extension |
 
 ## What the worksheets must look like
 
@@ -30,9 +32,9 @@ Time Date               Net Inc Tax           Sale Qty
 flag_focus_new (group)
 ```
 Rows shelf: `MONTH(Time Date)` (or `Time Date` at day grain — either works, since this
-worksheet only aggregates by month). No `Article Id`, `Article Name Th`, `Mch1 Desc`,
-`Mc Desc`, `Vendor Name`, `Sls Grp Desc`, `Universe`, or `Col Name` on Detail —
-that's what keeps this worksheet small.
+worksheet only aggregates by month). No `Article Id`, `Article Name Th`, `Image`,
+`Mch1 Desc`, `Mc Desc`, `Vendor Name`, `Sls Grp Desc`, `Universe`, or `Col Name` on
+Detail — that's what keeps this worksheet small.
 
 **2. Detail worksheet** — **Year-grain only** (no Month/Day), **with `Article Id`**.
 Feeds the breakdowns that need a distinct-SKU count — **Channel, Product Group, Price
@@ -42,10 +44,13 @@ to keep alongside the other Article-level attributes already on this worksheet.
 
 ```
 Time Date               Article Id            Article Name Th
-Brand                    Mch1 Desc             Mc Desc
-Vendor Name              Sls Grp Desc          Universe
-Col Name                 Net Inc Tax           Sale Qty
+Image                    Brand                 Mch1 Desc
+Mc Desc                  Vendor Name           Sls Grp Desc
+Universe                 Col Name              Net Inc Tax
+Sale Qty
 ```
+`Image` holds the product image URL shown in the Hero Products table — must match
+the source Excel header exactly, same as every other field here.
 Rows shelf: `YEAR(Time Date)` — do **not** add Month/Day here, since crossing
 `Article Id` with a finer date grain multiplies row count back up (this was the
 original cause of the `internal-error`). Also keep `Sls Ofc Desc`, `Flag_PrivateBrand`,
@@ -98,9 +103,10 @@ double-check after Pages finishes its first deploy (can take a minute or two).
    `Net Inc Tax`, `Sale Qty`, `%Margin (no tax)`, `Sls Ofc Desc`, `Flag_PrivateBrand`,
    `flag_focus_new (group)` on the **Detail** shelf. No `Article Id`, no `Col Name`.
 3. Build the **Detail worksheet**: `YEAR(Time Date)` plus `Article Id`,
-   `Article Name Th`, `Brand`, `Mch1 Desc`, `Mc Desc`, `Vendor Name`, `Sls Grp Desc`,
-   `Universe`, `Col Name`, `Net Inc Tax`, `Sale Qty` on the **Detail** shelf. No
-   `Sls Ofc Desc`, `Flag_PrivateBrand`, or `flag_focus_new (group)` here.
+   `Article Name Th`, `Image`, `Brand`, `Mch1 Desc`, `Mc Desc`, `Vendor Name`,
+   `Sls Grp Desc`, `Universe`, `Col Name`, `Net Inc Tax`, `Sale Qty` on the
+   **Detail** shelf. No `Sls Ofc Desc`, `Flag_PrivateBrand`, or `flag_focus_new (group)`
+   here.
 4. Add **both** worksheets to the same dashboard, then **Objects → Extension** →
    browse to `PortFittingOverview.trex` → **Add**.
 5. The dashboard should populate within a few seconds. Any native Tableau filter you
@@ -123,6 +129,41 @@ Then temporarily point the `<url>` in a copy of `PortFittingOverview.trex` at
 `http://localhost:8765/index.html`, load that manifest in Tableau Desktop, and swap
 back to the GitHub Pages URL once confirmed working.
 
+## Vendor Overview (second dashboard page)
+
+`vendor-overview/index.html` is a second, independent extension built the exact
+same way as the main dashboard — same 2-worksheet split, same `FIELD` mapping, same
+chart-rendering code — but framed around a single Vendor instead of the whole
+business. It reads the **same Trend + Detail worksheets already built in Tableau**;
+no new worksheet is required.
+
+Differences from the main page:
+- Header/title say "Vendor Overview" instead of "Port Fitting Overview".
+- A banner card at the top shows the vendor currently in scope — if a `Vendor Name`
+  filter narrows the data to exactly one vendor, it shows that vendor's name; if
+  more than one vendor is still present, it shows a count and a reminder to apply
+  the filter.
+- Every other card (KPIs, Trend, Channel/Product Group/Price Segment/Color Group,
+  Top Brand, Hero Products) is unchanged and simply recomputes against whatever
+  the Vendor filter currently leaves in the worksheets.
+
+**To add it in Tableau:**
+1. Create a new dashboard tab (e.g. "Vendor Overview").
+2. Drag the **same** Trend and Detail worksheets already used on the Port Fitting
+   Overview dashboard onto this new tab (Tableau allows reusing a worksheet across
+   multiple dashboards).
+3. Add a **Vendor Name** filter control to this tab so it can be scoped to one
+   vendor at a time.
+4. **Objects → Extension** → browse to `vendor-overview/VendorOverview.trex` → **Add**.
+5. Push `vendor-overview/` to the same GitHub repo (it's already under `extension/`,
+   so the existing `git add . && git commit && git push` from Step 1 covers it) —
+   GitHub Pages will publish it at
+   `https://warinda-nor.github.io/port_product_mer/vendor-overview/index.html`,
+   which is what the new `.trex` already points to.
+
+This is a starting clone — more vendor-specific cards (e.g. vendor-level scorecards
+from the sample file) are expected to be added once that reference is shared.
+
 ## What still needs your input
 
 - Nothing left on my end for the extension itself — it's ready as soon as the real
@@ -131,3 +172,5 @@ back to the GitHub Pages URL once confirmed working.
   renamed during import, etc.), the extension will fail loudly with a named-field
   error rather than silently showing wrong numbers — rename the Tableau field (or the
   constant in `index.html`'s `FIELD` object) to match.
+- Vendor Overview is a base clone for now — waiting on a sample Vendor reference
+  file to know which extra vendor-specific cards to add.
