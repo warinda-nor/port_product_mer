@@ -1057,7 +1057,7 @@ function renderHeroTable(container, title, sub, items) {
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
   const headers = [
-    '#', 'Article ID', 'Article Name', 'Brand', 'Product Group', 'Mc Desc',
+    '#', 'Article ID', 'Image', 'Article Name', 'Brand', 'Product Group', 'Mc Desc',
     'Net Sales 2025', 'Net Sales 2026', 'Growth Net Sales',
     'Sales Qty 2025', 'Sales Qty 2026', 'Growth Sales Qty',
   ];
@@ -1083,8 +1083,43 @@ function renderHeroTable(container, title, sub, items) {
     }
     addCell(String(idx + 1), 'rank');
     addCell(it.id);
-    addCell(it.name, 'name');
 
+    const imgTd = document.createElement('td');
+    function showImagePlaceholder() {
+      imgTd.innerHTML = '';
+      const placeholder = document.createElement('div');
+      placeholder.style.width = '40px';
+      placeholder.style.height = '40px';
+      placeholder.style.borderRadius = '4px';
+      placeholder.style.background = 'var(--grid)';
+      placeholder.style.display = 'flex';
+      placeholder.style.alignItems = 'center';
+      placeholder.style.justifyContent = 'center';
+      placeholder.style.fontSize = '9px';
+      placeholder.style.color = 'var(--text-muted)';
+      placeholder.textContent = 'N/A';
+      imgTd.appendChild(placeholder);
+    }
+    if (it.image) {
+      const img = document.createElement('img');
+      img.src = it.image;
+      img.alt = it.name;
+      img.style.width = '40px';
+      img.style.height = '40px';
+      img.style.objectFit = 'contain';
+      img.style.borderRadius = '4px';
+      img.style.background = '#ffffff';
+      img.style.border = '1px solid var(--grid)';
+      // Not every Article Id necessarily has a hosted image at this URL — fall
+      // back to the same placeholder instead of showing a broken-image icon.
+      img.onerror = showImagePlaceholder;
+      imgTd.appendChild(img);
+    } else {
+      showImagePlaceholder();
+    }
+    tr.appendChild(imgTd);
+
+    addCell(it.name, 'name');
     addCell(it.brand);
     addCell(it.mch2);
     addCell(it.mc);
