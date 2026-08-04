@@ -32,7 +32,7 @@ Time Date               Net Inc Tax           Sale Qty
 flag_focus_new (group)
 ```
 Rows shelf: `MONTH(Time Date)` (or `Time Date` at day grain — either works, since this
-worksheet only aggregates by month). No `Article Id`, `Article Name Th`, `Image`,
+worksheet only aggregates by month). No `Article Id`, `Article Name Th`,
 `Mch1 Desc`, `Mc Desc`, `Vendor Name`, `Sls Grp Desc`, `Universe`, or `Col Name` on
 Detail — that's what keeps this worksheet small.
 
@@ -44,13 +44,13 @@ to keep alongside the other Article-level attributes already on this worksheet.
 
 ```
 Time Date               Article Id            Article Name Th
-Image                    Brand                 Mch1 Desc
-Mc Desc                  Vendor Name           Sls Grp Desc
-Universe                 Col Name              Net Inc Tax
-Sale Qty
+Brand                    Mch1 Desc             Mc Desc
+Vendor Name              Sls Grp Desc          Universe
+Col Name                 Net Inc Tax           Sale Qty
 ```
-`Image` holds the product image URL shown in the Hero Products table — must match
-the source Excel header exactly, same as every other field here.
+The product image shown in the Hero Products table is built client-side from
+`Article Id` (`https://productimage.boonthavorn.com/o2/<Article Id>`) — no separate
+`Image` field is read from Tableau.
 Rows shelf: `YEAR(Time Date)` — do **not** add Month/Day here, since crossing
 `Article Id` with a finer date grain multiplies row count back up (this was the
 original cause of the `internal-error`). Also keep `Sls Ofc Desc`, `Flag_PrivateBrand`,
@@ -103,7 +103,7 @@ double-check after Pages finishes its first deploy (can take a minute or two).
    `Net Inc Tax`, `Sale Qty`, `%Margin (no tax)`, `Sls Ofc Desc`, `Flag_PrivateBrand`,
    `flag_focus_new (group)` on the **Detail** shelf. No `Article Id`, no `Col Name`.
 3. Build the **Detail worksheet**: `YEAR(Time Date)` plus `Article Id`,
-   `Article Name Th`, `Image`, `Brand`, `Mch1 Desc`, `Mc Desc`, `Vendor Name`,
+   `Article Name Th`, `Brand`, `Mch1 Desc`, `Mc Desc`, `Vendor Name`,
    `Sls Grp Desc`, `Universe`, `Col Name`, `Net Inc Tax`, `Sale Qty` on the
    **Detail** shelf. No `Sls Ofc Desc`, `Flag_PrivateBrand`, or `flag_focus_new (group)`
    here.
